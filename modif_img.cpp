@@ -1,6 +1,8 @@
 #include "FreeImage.h"
 
 #include <iostream>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define WIDTH 1920
