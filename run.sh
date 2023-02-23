@@ -11,6 +11,7 @@ if [ ! -d $free_image_path ]; then
     read
     tar -xf FreeImage3180.tar.gz
     cd FreeImage && make && make install
+    export LD_LIBRARY_PATH=$HOME/softs/FreeImage/lib
 fi
 
 list=$(module list)
