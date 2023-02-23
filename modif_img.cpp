@@ -8,11 +8,68 @@
 #define WIDTH 1920
 #define HEIGHT 1024
 #define BPP 24 // Since we're outputting three 8 bit RGB values
+#define FILENAME_BUFFER_LEN 1024
 
 using namespace std;
 
+int usage(char *exec)
+{
+   printf("Usage : %s -i <in.png> -o <out.png> [-s]\n", exec);
+
+   printf("\n");
+
+   printf("Options : \n"
+          "-i, --input <in.png>    Input JPG filepath. Default : `img.jpg`\n"
+          "-o, --output <out.png>  Output JPG filepath. Default : `new_img.jpg`\n"
+
+          "-s, --saturate <r,g,b>  Saturate an RGB component of the image\n"
+
+          "-h, --help           Show this message and exit\n"
+          // "-d, --debug          Enable debug mode\n"
+   );
+   return 0;
+}
+
+int hasarg(size_t i, int argc, char **argv)
+{
+   if (i + 1 >= (size_t)argc || argv[i + 1][0] == '-') {
+      printf("Missing variable\n");
+      usage(argv[0]);
+      exit(EXIT_FAILURE);
+   }
+   else
+      return 1;
+}
+
 int main(int argc, char **argv)
 {
+   size_t i = 1;
+   size_t debug = 0;
+   // char input[FILENAME_BUFFER_LEN] = "img.jpg";
+   // char output[FILENAME_BUFFER_LEN] = "new_img.jpg";
+   std::string input = "img.jpg";
+   std::string output = "new_img.jpg";
+
+   while (i < (size_t)argc && strlen(argv[i]) > 1 && argv[i][0] == '-') {
+      if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help"))
+         return usage(argv[0]);
+      else if (!strcmp(argv[i], "-d") || !strcmp(argv[i], "--debug")) {
+         printf("Since debug mode has been activated, repetitions are set to 1.\n");
+         debug = 1;
+      }
+      else if (!strcmp(argv[i], "-i") || !strcmp(argv[i], "--input")) {
+         if (hasarg(i, argc, argv))
+            input = argv[i + 1];
+         i++;
+      }
+      else if (!strcmp(argv[i], "-o") || !strcmp(argv[i], "--output")) {
+         if (hasarg(i, argc, argv))
+            output = argv[i + 1];
+         i++;
+      }
+      i++;
+   }
+
    FreeImage_Initialise();
    const char *PathName = "img.jpg";
    const char *PathDest = "new_img.png";
