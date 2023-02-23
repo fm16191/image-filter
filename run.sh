@@ -6,7 +6,7 @@
 
 free_image_path="../FreeImage"
 
-if [ -d $free_image_path ]; then
+if [ ! -d $free_image_path ]; then
     echo -e "Must install the FreeImage lib.\nReturn to continue..."
     read
     tar -xf FreeImage3180.tar.gz
