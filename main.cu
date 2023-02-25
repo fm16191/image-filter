@@ -1,5 +1,7 @@
 #include "FreeImage.h"
 
+#include <cuda.h>
+#include <cuda_runtime.h>
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,7 +26,7 @@ int usage(char *exec)
 
           "-s, --saturate <r,g,b>  Saturate an RGB component of the image\n"
 
-          "-h, --help           Show this message and exit\n"
+          "-h, --help              Show this message and exit\n"
           // "-d, --debug          Enable debug mode\n"
    );
    return 0;
@@ -108,68 +110,68 @@ int main(int argc, char **argv)
    memcpy(d_img, img, 3 * width * height * sizeof(unsigned int));
    memcpy(d_tmp, img, 3 * width * height * sizeof(unsigned int));
 
-   // Kernel
-   for (int y = 0; y < height; y++) {
-      for (int x = 0; x < width; x++) {
-         int ida = ((y * width) + x) * 3;
-         int idb = ((width * height) - ((y * width) + x)) * 3;
-         d_img[ida + 0] = d_tmp[idb + 0];
-         d_img[ida + 1] = d_tmp[idb + 1];
-         d_img[ida + 2] = d_tmp[idb + 2];
-      }
-   }
+   // // Kernel
+   // for (int y = 0; y < height; y++) {
+   //    for (int x = 0; x < width; x++) {
+   //       int ida = ((y * width) + x) * 3;
+   //       int idb = ((width * height) - ((y * width) + x)) * 3;
+   //       d_img[ida + 0] = d_tmp[idb + 0];
+   //       d_img[ida + 1] = d_tmp[idb + 1];
+   //       d_img[ida + 2] = d_tmp[idb + 2];
+   //    }
+   // }
 
-   for (int y = 0; y < height / 2; y++) {
-      for (int x = 0; x < width / 2; x++) {
-         // if( x < (width/2 * 0.75) || y < (height/2 * 0.65))
-         {
-            int idx = ((y * width) + x) * 3;
-            d_img[idx + 0] /= 2;
-            d_img[idx + 1] /= 4;
-            d_img[idx + 2] = 0xFF / 1.5;
-         }
-      }
-   }
+   // for (int y = 0; y < height / 2; y++) {
+   //    for (int x = 0; x < width / 2; x++) {
+   //       // if( x < (width/2 * 0.75) || y < (height/2 * 0.65))
+   //       {
+   //          int idx = ((y * width) + x) * 3;
+   //          d_img[idx + 0] /= 2;
+   //          d_img[idx + 1] /= 4;
+   //          d_img[idx + 2] = 0xFF / 1.5;
+   //       }
+   //    }
+   // }
 
-   for (int y = height / 2; y < height; y++) {
-      for (int x = width / 2; x < width; x++) {
-         // if( x >= ((width/2) + (width/2 * 0.25)) || y >= ((height/2) + (height/2 * 0.35)))
-         {
-            int idx = ((y * width) + x) * 3;
-            d_img[idx + 0] = 0xFF - d_img[idx + 0];
-            d_img[idx + 1] = 0xFF / 2;
-            d_img[idx + 2] /= 4;
-         }
-      }
-   }
+   // for (int y = height / 2; y < height; y++) {
+   //    for (int x = width / 2; x < width; x++) {
+   //       // if( x >= ((width/2) + (width/2 * 0.25)) || y >= ((height/2) + (height/2 * 0.35)))
+   //       {
+   //          int idx = ((y * width) + x) * 3;
+   //          d_img[idx + 0] = 0xFF - d_img[idx + 0];
+   //          d_img[idx + 1] = 0xFF / 2;
+   //          d_img[idx + 2] /= 4;
+   //       }
+   //    }
+   // }
 
-   for (int y = height / 2; y < height; y++) {
-      for (int x = 0; x < width / 2; x++) {
-         // if( x < (width/2 * 0.75) || y >= (height/2) + (height/2 * 0.35))
-         {
-            int idx = ((y * width) + x) * 3;
-            d_img[idx + 0] = 0xFF / 2;
-            d_img[idx + 1] /= 2;
-            d_img[idx + 2] /= 2;
-         }
-      }
-   }
+   // for (int y = height / 2; y < height; y++) {
+   //    for (int x = 0; x < width / 2; x++) {
+   //       // if( x < (width/2 * 0.75) || y >= (height/2) + (height/2 * 0.35))
+   //       {
+   //          int idx = ((y * width) + x) * 3;
+   //          d_img[idx + 0] = 0xFF / 2;
+   //          d_img[idx + 1] /= 2;
+   //          d_img[idx + 2] /= 2;
+   //       }
+   //    }
+   // }
 
-   for (int y = 0; y < height / 2; y++) {
-      for (int x = width / 2; x < width; x++) {
-         // if( x >= ((width/2) + (width/2 * 0.25)) || y < (height/2 * 0.65))
-         {
-            int idx = ((y * width) + x) * 3;
-            int grey = d_img[idx + 0] * 0.299 + d_img[idx + 1] * 0.587 + d_img[idx + 2] * 0.114;
-            // d_img[idx + 0] = 0xFF - d_img[idx + 0];
-            // d_img[idx + 1] = 0xFF - d_img[idx + 1];
-            // d_img[idx + 2] = 0xFF - d_img[idx + 2];
-            d_img[idx + 0] = grey;
-            d_img[idx + 1] = grey;
-            d_img[idx + 2] = grey;
-         }
-      }
-   }
+   // for (int y = 0; y < height / 2; y++) {
+   //    for (int x = width / 2; x < width; x++) {
+   //       // if( x >= ((width/2) + (width/2 * 0.25)) || y < (height/2 * 0.65))
+   //       {
+   //          int idx = ((y * width) + x) * 3;
+   //          int grey = d_img[idx + 0] * 0.299 + d_img[idx + 1] * 0.587 + d_img[idx + 2] * 0.114;
+   //          // d_img[idx + 0] = 0xFF - d_img[idx + 0];
+   //          // d_img[idx + 1] = 0xFF - d_img[idx + 1];
+   //          // d_img[idx + 2] = 0xFF - d_img[idx + 2];
+   //          d_img[idx + 0] = grey;
+   //          d_img[idx + 1] = grey;
+   //          d_img[idx + 2] = grey;
+   //       }
+   //    }
+   // }
 
    // Copy back
    memcpy(img, d_img, 3 * width * height * sizeof(unsigned int));
