@@ -15,7 +15,7 @@ if [ ! -d $free_image_path ]; then
 fi
 
 list=$(module list)
-(echo "$list" | grep cuda > /dev/null) || (echo "Loading cuda ..." && module load cuda)
-(echo "$list" | grep "gcc/10.2.0" > /dev/null) || (echo "Loading gcc@10.2.0 ..." && module load gcc/10.2.0)
+(echo "$list" | grep cuda > /dev/null) || { echo "Loading cuda ..." && module load cuda; }
+(echo "$list" | grep "gcc/10.2.0" > /dev/null) || { echo "Loading gcc@10.2.0 ..." && module load gcc/10.2.0; }
 
 make && ./modif_img.exe
