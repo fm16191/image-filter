@@ -9,6 +9,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define ALLOC_SIZE_BYTES (sizeof(unsigned char) * N_COMPONENT * width * height)
+
 __host__ static void load_pixels(FIBITMAP *bitmap, unsigned char *h_img, const size_t height,
                                  const size_t width, const size_t pitch)
 {
@@ -80,6 +82,12 @@ __host__ int hasarg(size_t i, int argc, char **argv)
       return 1;
 }
 
+// __host__ unsigned char *duplicate_image(unsigned char *d_img)
+// {
+//    err = cudaMemcpy(d_tmp, h_img, ALLOC_SIZE_BYTES, cudaMemcpyHostToDevice);
+//    gpuErrCheck(err);
+// }
+
 __host__ void saturate_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, size_t height,
                              size_t width, saturate_t saturate)
 {
@@ -106,6 +114,9 @@ __host__ void flip_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, un
    cudaEventCreate(&start);
    cudaEventCreate(&stop);
 
+   cudaError_t err = cudaMemcpy(d_tmp, d_img, ALLOC_SIZE_BYTES, cudaMemcpyDeviceToDevice);
+   gpuErrCheck(err);
+
    cudaEventRecord(start);
    if (orientation == HORIZONTAL)
       horizontal_flip_kernel<<<dim_grid, dim_block>>>(d_img, d_tmp, width, height * width);
@@ -128,6 +139,9 @@ __host__ void blur_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, un
    cudaEventCreate(&start);
    cudaEventCreate(&stop);
 
+   cudaError_t err = cudaMemcpy(d_tmp, d_img, ALLOC_SIZE_BYTES, cudaMemcpyDeviceToDevice);
+   gpuErrCheck(err);
+
    cudaEventRecord(start);
    blur_kernel<<<dim_grid, dim_block>>>(d_img, d_tmp, height, width);
    cudaEventRecord(stop);
@@ -143,7 +157,6 @@ int main(int argc, char **argv)
 {
    size_t i = 1;
    // size_t debug = 0;
-   size_t blur = 0;
    cudaError_t err;
 
    char *input = strdup("img.jpg");
@@ -152,6 +165,7 @@ int main(int argc, char **argv)
    enum saturate_t saturate = NOSATURATION;
    enum orientation_t orientation = NOFLIP;
 
+   /* Parse program options */
    while (i < (size_t)argc && strlen(argv[i]) > 1 && argv[i][0] == '-') {
       if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help"))
          return usage(argv[0]);
@@ -159,9 +173,6 @@ int main(int argc, char **argv)
       //    printf("Since debug mode has been activated, repetitions are set to 1.\n");
       //    debug = 1;
       // }
-      else if (!strcmp(argv[i], "-b") || !strcmp(argv[i], "--blur")) {
-         blur = 1;
-      }
       else if (!strcmp(argv[i], "-i") || !strcmp(argv[i], "--input")) {
          if (hasarg(i, argc, argv))
             input = argv[i + 1];
@@ -172,33 +183,12 @@ int main(int argc, char **argv)
             output = argv[i + 1];
          i++;
       }
-      else if (!strcmp(argv[i], "-f") || !strcmp(argv[i], "--flip")) {
-         if (hasarg(i, argc, argv)) {
-            if (!strcmp(argv[i + 1], "h"))
-               orientation = HORIZONTAL;
-            else if (!strcmp(argv[i + 1], "v"))
-               orientation = VERTICAL;
-            else
-               return printf("--flip option must be in <h,v>\n"), usage(argv[0]);
-         }
-         i++;
-      }
-      else if (!strcmp(argv[i], "-s") || !strcmp(argv[i], "--saturate")) {
-         if (hasarg(i, argc, argv)) {
-            if (!strcmp(argv[i + 1], "r"))
-               saturate = R;
-            else if (!strcmp(argv[i + 1], "g"))
-               saturate = G;
-            else if (!strcmp(argv[i + 1], "b"))
-               saturate = B;
-            else
-               return printf("--saturate option must be in <r,g,b>\n"), usage(argv[0]);
-         }
-         i++;
-      }
       i++;
    }
 
+   /* -------------- */
+   /* Initialisation */
+   /* -------------- */
    FreeImage_Initialise();
 
    // load and decode a regular file
@@ -215,26 +205,23 @@ int main(int argc, char **argv)
    fprintf(stderr, "Processing Image of size %d x %d\n", width, height);
 
    // Allocate memories
-   unsigned int size_in_bytes = sizeof(unsigned char) * N_COMPONENT * width * height;
    unsigned char *h_img = NULL;
    unsigned char *d_img = NULL;
    unsigned char *d_tmp = NULL;
 
-   h_img = (unsigned char *)malloc(size_in_bytes);
+   h_img = (unsigned char *)malloc(ALLOC_SIZE_BYTES);
    if (!h_img)
       return fprintf(stderr, "Cannot allocate memory\n"), 2;
-   err = cudaMalloc(&d_img, size_in_bytes);
+   err = cudaMalloc(&d_img, ALLOC_SIZE_BYTES);
    gpuErrCheck(err);
-   err = cudaMalloc(&d_tmp, size_in_bytes);
+   err = cudaMalloc(&d_tmp, ALLOC_SIZE_BYTES);
    gpuErrCheck(err);
 
    // Get pixels
    load_pixels(bitmap, h_img, height, width, pitch);
 
    // Copy host array to device array
-   err = cudaMemcpy(d_img, h_img, size_in_bytes, cudaMemcpyHostToDevice);
-   gpuErrCheck(err);
-   err = cudaMemcpy(d_tmp, h_img, size_in_bytes, cudaMemcpyHostToDevice);
+   err = cudaMemcpy(d_img, h_img, ALLOC_SIZE_BYTES, cudaMemcpyHostToDevice);
    gpuErrCheck(err);
 
    // Define grid and blocks
@@ -246,82 +233,45 @@ int main(int argc, char **argv)
    fprintf(stderr, "Using a grid (%d, %d, %d) of blocks (%d, %d, %d)\n", dim_grid.x, dim_grid.y,
            dim_grid.z, dim_block.x, dim_block.y, dim_block.z);
 
-   //
-   if (saturate != NOSATURATION)
-      saturate_image(dim_grid, dim_block, d_img, height, width, saturate);
+   /* Parse filters arguments */
+   i = 1;
+   while (i < (size_t)argc && strlen(argv[i]) > 1 && argv[i][0] == '-') {
+      if (!strcmp(argv[i], "-b") || !strcmp(argv[i], "--blur")) {
+         blur_image(dim_grid, dim_block, d_img, d_tmp, height, width);
+      }
+      else if (!strcmp(argv[i], "-f") || !strcmp(argv[i], "--flip")) {
+         if (hasarg(i, argc, argv)) {
+            if (!strcmp(argv[i + 1], "h"))
+               orientation = HORIZONTAL;
+            else if (!strcmp(argv[i + 1], "v"))
+               orientation = VERTICAL;
+            else
+               return printf("--flip option must be in <h,v>\n"), usage(argv[0]);
+            //
+            flip_image(dim_grid, dim_block, d_img, d_tmp, height, width, orientation);
+         }
+         i++;
+      }
+      else if (!strcmp(argv[i], "-s") || !strcmp(argv[i], "--saturate")) {
+         if (hasarg(i, argc, argv)) {
+            if (!strcmp(argv[i + 1], "r"))
+               saturate = R;
+            else if (!strcmp(argv[i + 1], "g"))
+               saturate = G;
+            else if (!strcmp(argv[i + 1], "b"))
+               saturate = B;
+            else
+               return printf("--saturate option must be in <r,g,b>\n"), usage(argv[0]);
+            //
+            saturate_image(dim_grid, dim_block, d_img, height, width, saturate);
+         }
+         i++;
+      }
+      i++;
+   }
 
-   if (orientation != NOFLIP)
-      flip_image(dim_grid, dim_block, d_img, d_tmp, height, width, orientation);
-
-   if (blur)
-      blur_image(dim_grid, dim_block, d_img, d_tmp, height, width);
-
-   // Kernel
-   // for (int y = 0; y < height; y++) {
-   //    for (int x = 0; x < width; x++) {
-   //       int ida = ((y * width) + x) * 3;
-   //       int idb = ((width * height) - ((y * width) + x)) * 3;
-   //       d_img[ida + 0] = d_tmp[idb + 0];
-   //       d_img[ida + 1] = d_tmp[idb + 1];
-   //       d_img[ida + 2] = d_tmp[idb + 2];
-   //    }
-   // }
-
-   // for (int y = 0; y < height / 2; y++) {
-   //    for (int x = 0; x < width / 2; x++) {
-   //       // if( x < (width/2 * 0.75) || y < (height/2 * 0.65))
-   //       {
-   //          int idx = ((y * width) + x) * 3;
-   //          d_img[idx + 0] /= 2;
-   //          d_img[idx + 1] /= 4;
-   //          d_img[idx + 2] = 0xFF / 1.5;
-   //       }
-   //    }
-   // }
-
-   // for (int y = height / 2; y < height; y++) {
-   //    for (int x = width / 2; x < width; x++) {
-   //       // if( x >= ((width/2) + (width/2 * 0.25)) || y >= ((height/2) + (height/2 * 0.35)))
-   //       {
-   //          int idx = ((y * width) + x) * 3;
-   //          d_img[idx + 0] = 0xFF - d_img[idx + 0];
-   //          d_img[idx + 1] = 0xFF / 2;
-   //          d_img[idx + 2] /= 4;
-   //       }
-   //    }
-   // }
-
-   // for (int y = height / 2; y < height; y++) {
-   //    for (int x = 0; x < width / 2; x++) {
-   //       // if( x < (width/2 * 0.75) || y >= (height/2) + (height/2 * 0.35))
-   //       {
-   //          int idx = ((y * width) + x) * 3;
-   //          d_img[idx + 0] = 0xFF / 2;
-   //          d_img[idx + 1] /= 2;
-   //          d_img[idx + 2] /= 2;
-   //       }
-   //    }
-   // }
-
-   // for (int y = 0; y < height / 2; y++) {
-   //    for (int x = width / 2; x < width; x++) {
-   //       // if( x >= ((width/2) + (width/2 * 0.25)) || y < (height/2 * 0.65))
-   //       {
-   //          int idx = ((y * width) + x) * 3;
-   //          int grey = d_img[idx + 0] * 0.299 + d_img[idx + 1] * 0.587 + d_img[idx + 2] * 0.114;
-   //          // d_img[idx + 0] = 0xFF - d_img[idx + 0];
-   //          // d_img[idx + 1] = 0xFF - d_img[idx + 1];
-   //          // d_img[idx + 2] = 0xFF - d_img[idx + 2];
-   //          d_img[idx + 0] = grey;
-   //          d_img[idx + 1] = grey;
-   //          d_img[idx + 2] = grey;
-   //       }
-   //    }
-   // }
-
-   // // Copy back
-   // memcpy(img, d_img, 3 * width * height * sizeof(unsigned int));
-   err = cudaMemcpy(h_img, d_img, size_in_bytes, cudaMemcpyDeviceToHost);
+   // Copy back
+   err = cudaMemcpy(h_img, d_img, ALLOC_SIZE_BYTES, cudaMemcpyDeviceToHost);
    gpuErrCheck(err);
 
    // Store pixels
