@@ -23,6 +23,19 @@ __global__ void saturate_component(unsigned char *d_img, const size_t size,
       d_img[id * N_COMPONENT + component_index] = FULL;
 }
 
+__global__ void extract_component(unsigned char *d_img, const size_t size,
+                                   const size_t component_index)
+{
+   size_t id = index();
+
+   if (id < size)
+      for (size_t i = 0; i < N_COMPONENT; ++i) {
+         if (i == component_index)
+            continue;
+         d_img[id * N_COMPONENT + i] = 0;
+      }
+}
+
 __global__ void horizontal_flip_kernel(unsigned char *d_img, const unsigned char *d_tmp,
                                        const size_t width, const size_t size)
 {

@@ -26,5 +26,7 @@ __global__ void grayscale_kernel(unsigned char *d_img, const size_t size);
 __global__ void sobel_kernel(unsigned char *d_img, const unsigned char *d_tmp, const int height,
                              const int width);
 __global__ void negative_kernel(unsigned char *d_img, const size_t size);
+__global__ void extract_component(unsigned char *d_img, const size_t size,
+                                  const size_t component_index);
 
 #endif // _KERNEL_H_

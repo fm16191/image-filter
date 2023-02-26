@@ -73,6 +73,7 @@ __host__ int usage(char *exec)
           "-o, --output <out.jpg>  Output JPG filepath. Default : `new_img.jpg`\n"
 
           "-s, --saturate <r,g,b>  Saturate an RGB component of the image\n"
+          "-s, --extract <r,g,b>   Extract an RGB component of the image\n"
           "-f, --flip <h,v>        Flip image horizontally, vertically\n"
           "-b, --blur [it]         Blur image `it` times. Default : `1`\n"
           "-g, --grayscale         Gray scale image.\n"
@@ -105,6 +106,18 @@ __host__ void saturate_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img
 
    float milliseconds = cudaTimerCompute(start, stop);
    printf("Image saturation (%s) in %e s\n",
+          (component == R) ? "red" : (component == G ? "green" : "blue"), milliseconds / 1e3);
+}
+
+__host__ void color_extraction_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img,
+                                     size_t height, size_t width, component_t component)
+{
+   cudaEventRecord(start);
+   extract_component<<<dim_grid, dim_block>>>(d_img, height * width, component);
+   cudaEventRecord(stop);
+
+   float milliseconds = cudaTimerCompute(start, stop);
+   printf("Image color extraction (%s) in %e s\n",
           (component == R) ? "red" : (component == G ? "green" : "blue"), milliseconds / 1e3);
 }
 
@@ -152,7 +165,7 @@ __host__ void grayscale_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_im
 }
 
 __host__ void negative_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, size_t height,
-                              size_t width)
+                             size_t width)
 {
    cudaEventRecord(start);
    negative_kernel<<<dim_grid, dim_block>>>(d_img, height * width);
@@ -306,6 +319,21 @@ int main(int argc, char **argv)
                return printf("--saturate option must be in <r,g,b>\n"), usage(argv[0]);
             //
             saturate_image(dim_grid, dim_block, d_img, height, width, component);
+         }
+         i++;
+      }
+      else if (!strcmp(argv[i], "-x") || !strcmp(argv[i], "--extract")) {
+         if (hasarg(i, argc, argv)) {
+            if (!strcmp(argv[i + 1], "r"))
+               component = R;
+            else if (!strcmp(argv[i + 1], "g"))
+               component = G;
+            else if (!strcmp(argv[i + 1], "b"))
+               component = B;
+            else
+               return printf("--extract option must be in <r,g,b>\n"), usage(argv[0]);
+            //
+            color_extraction_image(dim_grid, dim_block, d_img, height, width, component);
          }
          i++;
       }
