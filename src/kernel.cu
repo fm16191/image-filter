@@ -83,6 +83,16 @@ __global__ void grayscale_kernel(unsigned char *d_img, const size_t size)
    }
 }
 
+__global__ void negative_kernel(unsigned char *d_img, const size_t size)
+{
+   size_t id = index();
+
+   if (id < size) {
+      for (size_t i = 0; i < N_COMPONENT; ++i)
+         d_img[id * N_COMPONENT + i] = FULL - d_img[id * N_COMPONENT + i];
+   }
+}
+
 __global__ void sobel_kernel(unsigned char *d_img, const unsigned char *d_tmp, const int height,
                              const int width)
 {

@@ -74,7 +74,10 @@ __host__ int usage(char *exec)
 
           "-s, --saturate <r,g,b>  Saturate an RGB component of the image\n"
           "-f, --flip <h,v>        Flip image horizontally, vertically\n"
-          "-b, --blur [it]         Blur image it times. Default : 1\n"
+          "-b, --blur [it]         Blur image `it` times. Default : `1`\n"
+          "-g, --grayscale         Gray scale image.\n"
+          "-l, --sobel             Apply a Sobel filter to the image.\n"
+          "-n, --negative          Transform image into a negative.\n"
 
           "-h, --help              Show this message and exit\n"
           // "-d, --debug          Enable debug mode\n"
@@ -146,6 +149,16 @@ __host__ void grayscale_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_im
 
    float milliseconds = cudaTimerCompute(start, stop);
    printf("Image grayscaled in %e s\n", milliseconds / 1e3);
+}
+__host__ void negative_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, size_t height,
+                              size_t width)
+{
+   cudaEventRecord(start);
+   negative_kernel<<<dim_grid, dim_block>>>(d_img, height * width);
+   cudaEventRecord(stop);
+
+   float milliseconds = cudaTimerCompute(start, stop);
+   printf("Image negative in %e s\n", milliseconds / 1e3);
 }
 
 __host__ void sobel_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, unsigned char *d_tmp,
@@ -260,6 +273,9 @@ int main(int argc, char **argv)
       }
       else if (!strcmp(argv[i], "-g") || !strcmp(argv[i], "--grayscale")) {
          grayscale_image(dim_grid, dim_block, d_img, height, width);
+      }
+      else if (!strcmp(argv[i], "-n") || !strcmp(argv[i], "--negative")) {
+         negative_image(dim_grid, dim_block, d_img, height, width);
       }
       else if (!strcmp(argv[i], "-l") || !strcmp(argv[i], "--sobel")) {
          sobel_image(dim_grid, dim_block, d_img, d_tmp, height, width);
