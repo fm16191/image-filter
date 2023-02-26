@@ -1,4 +1,6 @@
 #include "FreeImage.h"
+#include "kernel.h"
+#include "utils.h"
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -7,30 +9,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define WIDTH 1920
-#define HEIGHT 1024
-#define BPP 24        // Since we're outputting three 8 bit RGB values
-#define N_THREADS 32  // Number of CUDA threads
-#define N_COMPONENT 3 // we have 3 component (RGB)
-#define FULL 255      // Max rgb value
-#define gpuErrCheck(ans)                                                                           \
-   {                                                                                               \
-      gpuAssert((ans), __FILE__, __LINE__);                                                        \
-   }
-inline void gpuAssert(cudaError_t code, const char *file, int line)
-{
-   if (code != cudaSuccess)
-      fprintf(stderr, "GPUassert: %s | %s:%d\n", cudaGetErrorString(code), file, line);
-}
-
 __host__ static void load_pixels(FIBITMAP *bitmap, unsigned char *h_img, const size_t height,
                                  const size_t width, const size_t pitch)
 {
    BYTE *bits = (BYTE *)FreeImage_GetBits(bitmap);
-   for (int y = 0; y < height; y++) {
+   for (size_t y = 0; y < height; y++) {
       BYTE *pixel = (BYTE *)bits;
-      for (int x = 0; x < width; x++) {
-         int idx = ((y * width) + x) * N_COMPONENT;
+      for (size_t x = 0; x < width; x++) {
+         size_t idx = ((y * width) + x) * N_COMPONENT;
          h_img[idx + 0] = pixel[FI_RGBA_RED];
          h_img[idx + 1] = pixel[FI_RGBA_GREEN];
          h_img[idx + 2] = pixel[FI_RGBA_BLUE];
@@ -44,34 +30,23 @@ __host__ static void store_pixels(FIBITMAP *bitmap, unsigned char *h_img, const 
                                   const size_t width, const size_t pitch)
 {
    BYTE *bits = (BYTE *)FreeImage_GetBits(bitmap);
-   for (int y = 0; y < height; y++) {
+   for (size_t y = 0; y < height; y++) {
       BYTE *pixel = (BYTE *)bits;
-      for (int x = 0; x < width; x++) {
+      for (size_t x = 0; x < width; x++) {
          RGBQUAD newcolor;
 
-         int idx = (y * width + x) * N_COMPONENT;
+         size_t idx = (y * width + x) * N_COMPONENT;
          newcolor.rgbRed = h_img[idx + 0];
          newcolor.rgbGreen = h_img[idx + 1];
          newcolor.rgbBlue = h_img[idx + 2];
 
          if (!FreeImage_SetPixelColor(bitmap, x, y, &newcolor))
-            fprintf(stderr, "Cannot set (%d, %d) pixel color\n", x, y);
+            fprintf(stderr, "Cannot set (%ld, %ld) pixel color\n", x, y);
 
          pixel += N_COMPONENT;
       }
       bits += pitch; // next line
    }
-}
-
-__global__ void saturate_component(unsigned char *d_img, const size_t size, const size_t index)
-{
-   size_t block_size = blockDim.x * blockDim.y;
-   size_t block_id = gridDim.x * blockIdx.y + blockIdx.x;
-   size_t thread_id = blockDim.x * threadIdx.y + threadIdx.x;
-   size_t id = block_id * block_size + thread_id;
-
-   if (id < size)
-      d_img[id * N_COMPONENT + index] = FULL;
 }
 
 __host__ int usage(char *exec)
@@ -102,13 +77,6 @@ __host__ int hasarg(size_t i, int argc, char **argv)
    else
       return 1;
 }
-
-enum saturate_t {
-   R,
-   G,
-   B,
-   NOSATURATION
-};
 
 __host__ void saturate_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, size_t height,
                              size_t width, saturate_t saturate)
