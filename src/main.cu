@@ -147,6 +147,24 @@ __host__ void blur_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, un
    printf("Image blurred in %e s\n", milliseconds / 1e3);
 }
 
+__host__ void grayscale_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, size_t height,
+                              size_t width)
+{
+   cudaEvent_t start, stop;
+   cudaEventCreate(&start);
+   cudaEventCreate(&stop);
+
+   cudaEventRecord(start);
+   grayscale_kernel<<<dim_grid, dim_block>>>(d_img, height * width);
+   cudaEventRecord(stop);
+
+   cudaDeviceSynchronize();
+   cudaEventSynchronize(stop);
+   float milliseconds = 0;
+   cudaEventElapsedTime(&milliseconds, start, stop);
+   printf("Image grayscaled in %e s\n", milliseconds / 1e3);
+}
+
 int main(int argc, char **argv)
 {
    size_t i = 1;
@@ -238,6 +256,9 @@ int main(int argc, char **argv)
          }
          for (size_t it = 0; it < max_it; ++it)
             blur_image(dim_grid, dim_block, d_img, d_tmp, height, width);
+      }
+      if (!strcmp(argv[i], "-g") || !strcmp(argv[i], "--grayscale")) {
+         grayscale_image(dim_grid, dim_block, d_img, height, width);
       }
       else if (!strcmp(argv[i], "-f") || !strcmp(argv[i], "--flip")) {
          if (hasarg(i, argc, argv)) {

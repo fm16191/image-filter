@@ -69,3 +69,16 @@ __global__ void blur_kernel(unsigned char *d_img, const unsigned char *d_tmp, co
       }
    }
 }
+
+__global__ void grayscale_kernel(unsigned char *d_img, const size_t size)
+{
+   size_t id = index();
+
+   if (id < size) {
+      unsigned char rgb = (unsigned char)((float)d_img[id * N_COMPONENT + 0] * 0.299f +
+                                          (float)d_img[id * N_COMPONENT + 1] * 0.587f +
+                                          (float)d_img[id * N_COMPONENT + 2] * 0.114f);
+      for (size_t i = 0; i < N_COMPONENT; ++i)
+         d_img[id * N_COMPONENT + i] = rgb;
+   }
+}
