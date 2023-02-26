@@ -23,5 +23,7 @@ __global__ void vertical_flip_kernel(unsigned char *d_img, const unsigned char *
 __global__ void blur_kernel(unsigned char *d_img, const unsigned char *d_tmp, const size_t height,
                             const size_t width);
 __global__ void grayscale_kernel(unsigned char *d_img, const size_t size);
+__global__ void sobel_kernel(unsigned char *d_img, const unsigned char *d_tmp, const int height,
+                             const int width);
 
 #endif // _KERNEL_H_
