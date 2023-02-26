@@ -23,6 +23,46 @@ inline void gpuAssert(cudaError_t code, const char *file, int line)
       fprintf(stderr, "GPUassert: %s | %s:%d\n", cudaGetErrorString(code), file, line);
 }
 
+__host__ static void load_pixels(FIBITMAP *bitmap, unsigned char *h_img, const size_t height,
+                                 const size_t width, const size_t pitch)
+{
+   BYTE *bits = (BYTE *)FreeImage_GetBits(bitmap);
+   for (int y = 0; y < height; y++) {
+      BYTE *pixel = (BYTE *)bits;
+      for (int x = 0; x < width; x++) {
+         int idx = ((y * width) + x) * N_COMPONENT;
+         h_img[idx + 0] = pixel[FI_RGBA_RED];
+         h_img[idx + 1] = pixel[FI_RGBA_GREEN];
+         h_img[idx + 2] = pixel[FI_RGBA_BLUE];
+         pixel += N_COMPONENT;
+      }
+      bits += pitch; // next line
+   }
+}
+
+__host__ static void store_pixels(FIBITMAP *bitmap, unsigned char *h_img, const size_t height,
+                                  const size_t width, const size_t pitch)
+{
+   BYTE *bits = (BYTE *)FreeImage_GetBits(bitmap);
+   for (int y = 0; y < height; y++) {
+      BYTE *pixel = (BYTE *)bits;
+      for (int x = 0; x < width; x++) {
+         RGBQUAD newcolor;
+
+         int idx = (y * width + x) * N_COMPONENT;
+         newcolor.rgbRed = h_img[idx + 0];
+         newcolor.rgbGreen = h_img[idx + 1];
+         newcolor.rgbBlue = h_img[idx + 2];
+
+         if (!FreeImage_SetPixelColor(bitmap, x, y, &newcolor))
+            fprintf(stderr, "Cannot set (%d, %d) pixel color\n", x, y);
+
+         pixel += N_COMPONENT;
+      }
+      bits += pitch; // next line
+   }
+}
+
 __global__ void saturate_component(unsigned char *d_img, const size_t size, const size_t index)
 {
    size_t block_size = blockDim.x * blockDim.y;
@@ -152,30 +192,18 @@ int main(int argc, char **argv)
    unsigned int size_in_bytes = sizeof(unsigned char) * N_COMPONENT * width * height;
    unsigned char *h_img = NULL;
    unsigned char *d_img = NULL;
-   unsigned char *d_tmp = NULL;
+   // unsigned char *d_tmp = NULL;
 
    h_img = (unsigned char *)malloc(size_in_bytes);
    if (!h_img)
       return fprintf(stderr, "Cannot allocate memory\n"), 2;
    err = cudaMalloc(&d_img, size_in_bytes);
    gpuErrCheck(err);
-   err = cudaMalloc(&d_tmp, size_in_bytes);
-   gpuErrCheck(err);
+   // err = cudaMalloc(&d_tmp, size_in_bytes);
+   // gpuErrCheck(err);
 
    // Get pixels
-   BYTE *bits = (BYTE *)FreeImage_GetBits(bitmap);
-   for (int y = 0; y < height; y++) {
-      BYTE *pixel = (BYTE *)bits;
-      for (int x = 0; x < width; x++) {
-         int idx = ((y * width) + x) * N_COMPONENT;
-         h_img[idx + 0] = pixel[FI_RGBA_RED];
-         h_img[idx + 1] = pixel[FI_RGBA_GREEN];
-         h_img[idx + 2] = pixel[FI_RGBA_BLUE];
-         pixel += N_COMPONENT;
-      }
-      // next line
-      bits += pitch;
-   }
+   load_pixels(bitmap, h_img, height, width, pitch);
 
    // Copy host array to device array
    err = cudaMemcpy(d_img, h_img, size_in_bytes, cudaMemcpyHostToDevice);
@@ -263,25 +291,7 @@ int main(int argc, char **argv)
    gpuErrCheck(err);
 
    // Store pixels
-   bits = (BYTE *)FreeImage_GetBits(bitmap);
-   for (int y = 0; y < height; y++) {
-      BYTE *pixel = (BYTE *)bits;
-      for (int x = 0; x < width; x++) {
-         RGBQUAD newcolor;
-
-         int idx = (y * width + x) * N_COMPONENT;
-         newcolor.rgbRed = h_img[idx + 0];
-         newcolor.rgbGreen = h_img[idx + 1];
-         newcolor.rgbBlue = h_img[idx + 2];
-
-         if (!FreeImage_SetPixelColor(bitmap, x, y, &newcolor))
-            fprintf(stderr, "(%d, %d) Fail...\n", x, y);
-
-         pixel += N_COMPONENT;
-      }
-      // next line
-      bits += pitch;
-   }
+   store_pixels(bitmap, h_img, height, width, pitch);
 
    if (FreeImage_Save(FIF_PNG, bitmap, output, 0))
       printf("Image successfully saved ! \n");
@@ -290,5 +300,5 @@ int main(int argc, char **argv)
 
    free(h_img);
    cudaFree(d_img);
-   cudaFree(d_tmp);
+   // cudaFree(d_tmp);
 }
