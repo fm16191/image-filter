@@ -82,12 +82,6 @@ __host__ int hasarg(size_t i, int argc, char **argv)
       return 1;
 }
 
-// __host__ unsigned char *duplicate_image(unsigned char *d_img)
-// {
-//    err = cudaMemcpy(d_tmp, h_img, ALLOC_SIZE_BYTES, cudaMemcpyHostToDevice);
-//    gpuErrCheck(err);
-// }
-
 __host__ void saturate_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, size_t height,
                              size_t width, saturate_t saturate)
 {
@@ -270,6 +264,9 @@ int main(int argc, char **argv)
       i++;
    }
 
+   /* ----------- */
+   /* Termination */
+   /* ----------- */
    // Copy back
    err = cudaMemcpy(h_img, d_img, ALLOC_SIZE_BYTES, cudaMemcpyDeviceToHost);
    gpuErrCheck(err);
