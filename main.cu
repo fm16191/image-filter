@@ -73,16 +73,20 @@ enum saturate_t {
 __host__ void saturate_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, size_t height,
                              size_t width, saturate_t saturate)
 {
-   struct timespec ts;
-   clock_gettime(CLOCK_MONOTONIC, &ts);
-   double before_saturate = ts.tv_sec + ts.tv_nsec * 1.0e-9;
-   saturate_component<<<dim_grid, dim_block>>>(d_img, height * width, saturate);
-   cudaDeviceSynchronize();
+   cudaEvent_t start, stop;
+   cudaEventCreate(&start);
+   cudaEventCreate(&stop);
 
-   clock_gettime(CLOCK_MONOTONIC, &ts);
-   double after_saturate = ts.tv_sec + ts.tv_nsec * 1.0e-9;
-   fprintf(stderr, "Saturate %s component takes %e seconds\n", "red",
-           after_saturate - before_saturate);
+   cudaEventRecord(start);
+   saturate_component<<<dim_grid, dim_block>>>(d_img, height * width, saturate);
+   cudaEventRecord(stop);
+
+   cudaDeviceSynchronize();
+   cudaEventSynchronize(stop);
+   float milliseconds = 0;
+   cudaEventElapsedTime(&milliseconds, start, stop);
+   printf("Image saturation (%s) in %e s\n",
+          (saturate == R) ? "red" : (saturate == G ? "green" : "blue"), milliseconds / 1e3);
 }
 
 int main(int argc, char **argv)
