@@ -9,20 +9,40 @@
 
 #define WIDTH 1920
 #define HEIGHT 1024
-#define BPP 24 // Since we're outputting three 8 bit RGB values
-#define FILENAME_BUFFER_LEN 1024
-
-using namespace std;
-
-int usage(char *exec)
+#define BPP 24        // Since we're outputting three 8 bit RGB values
+#define N_THREADS 32  // Number of CUDA threads
+#define N_COMPONENT 3 // we have 3 component (RGB)
+#define FULL 255      // Max rgb value
+#define gpuErrCheck(ans)                                                                           \
+   {                                                                                               \
+      gpuAssert((ans), __FILE__, __LINE__);                                                        \
+   }
+inline void gpuAssert(cudaError_t code, const char *file, int line)
 {
-   printf("Usage : %s -i <in.png> -o <out.png> [-s]\n", exec);
+   if (code != cudaSuccess)
+      fprintf(stderr, "GPUassert: %s | %s:%d\n", cudaGetErrorString(code), file, line);
+}
+
+__global__ void saturate_component(unsigned char *d_img, const size_t size, const size_t index)
+{
+   size_t block_size = blockDim.x * blockDim.y;
+   size_t block_id = gridDim.x * blockIdx.y + blockIdx.x;
+   size_t thread_id = blockDim.x * threadIdx.y + threadIdx.x;
+   size_t id = block_id * block_size + thread_id;
+
+   if (id < size)
+      d_img[id * N_COMPONENT + index] = FULL;
+}
+
+__host__ int usage(char *exec)
+{
+   printf("Usage : %s -i <in.jpg> -o <out.jpg> [-s]\n", exec);
 
    printf("\n");
 
    printf("Options : \n"
-          "-i, --input <in.png>    Input JPG filepath. Default : `img.jpg`\n"
-          "-o, --output <out.png>  Output JPG filepath. Default : `new_img.jpg`\n"
+          "-i, --input <in.jpg>    Input JPG filepath. Default : `img.jpg`\n"
+          "-o, --output <out.jpg>  Output JPG filepath. Default : `new_img.jpg`\n"
 
           "-s, --saturate <r,g,b>  Saturate an RGB component of the image\n"
 
@@ -32,7 +52,7 @@ int usage(char *exec)
    return 0;
 }
 
-int hasarg(size_t i, int argc, char **argv)
+__host__ int hasarg(size_t i, int argc, char **argv)
 {
    if (i + 1 >= (size_t)argc || argv[i + 1][0] == '-') {
       printf("Missing variable\n");
@@ -43,14 +63,38 @@ int hasarg(size_t i, int argc, char **argv)
       return 1;
 }
 
+enum saturate_t {
+   R,
+   G,
+   B,
+   NOSATURATION
+};
+
+__host__ void saturate_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, size_t height,
+                             size_t width, saturate_t saturate)
+{
+   struct timespec ts;
+   clock_gettime(CLOCK_MONOTONIC, &ts);
+   double before_saturate = ts.tv_sec + ts.tv_nsec * 1.0e-9;
+   saturate_component<<<dim_grid, dim_block>>>(d_img, height * width, saturate);
+   cudaDeviceSynchronize();
+
+   clock_gettime(CLOCK_MONOTONIC, &ts);
+   double after_saturate = ts.tv_sec + ts.tv_nsec * 1.0e-9;
+   fprintf(stderr, "Saturate %s component takes %e seconds\n", "red",
+           after_saturate - before_saturate);
+}
+
 int main(int argc, char **argv)
 {
    size_t i = 1;
    size_t debug = 0;
-   // char input[FILENAME_BUFFER_LEN] = "img.jpg";
-   // char output[FILENAME_BUFFER_LEN] = "new_img.jpg";
-   std::string input = "img.jpg";
-   std::string output = "new_img.jpg";
+   cudaError_t err;
+
+   char *input = strdup("img.jpg");
+   char *output = strdup("new_img.jpg");
+
+   enum saturate_t saturate = NOSATURATION;
 
    while (i < (size_t)argc && strlen(argv[i]) > 1 && argv[i][0] == '-') {
       if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help"))
@@ -69,19 +113,30 @@ int main(int argc, char **argv)
             output = argv[i + 1];
          i++;
       }
+      else if (!strcmp(argv[i], "-s") || !strcmp(argv[i], "--saturate")) {
+         if (hasarg(i, argc, argv)) {
+            if (!strcmp(argv[i + 1], "r"))
+               saturate = R;
+            else if (!strcmp(argv[i + 1], "g"))
+               saturate = G;
+            else if (!strcmp(argv[i + 1], "b"))
+               saturate = B;
+            else
+               return printf("--saturate option must be in <r,g,b>\n"), usage(argv[0]);
+         }
+         i++;
+      }
       i++;
    }
 
    FreeImage_Initialise();
-   const char *PathName = "img.jpg";
-   const char *PathDest = "new_img.png";
-   // load and decode a regular file
-   FREE_IMAGE_FORMAT fif = FreeImage_GetFileType(PathName);
 
-   FIBITMAP *bitmap = FreeImage_Load(FIF_JPEG, PathName, 0);
+   // load and decode a regular file
+   FREE_IMAGE_FORMAT fif = FreeImage_GetFileType(input);
+   FIBITMAP *bitmap = FreeImage_Load(FIF_JPEG, input, 0);
 
    if (!bitmap)
-      exit(1); // WTF?! We can't even allocate images ? Die !
+      return fprintf(stderr, "Cannot load Image\n"), 1;
 
    unsigned width = FreeImage_GetWidth(bitmap);
    unsigned height = FreeImage_GetHeight(bitmap);
@@ -89,28 +144,53 @@ int main(int argc, char **argv)
 
    fprintf(stderr, "Processing Image of size %d x %d\n", width, height);
 
-   unsigned int *img = (unsigned int *)malloc(sizeof(unsigned int) * 3 * width * height);
-   unsigned int *d_img = (unsigned int *)malloc(sizeof(unsigned int) * 3 * width * height);
-   unsigned int *d_tmp = (unsigned int *)malloc(sizeof(unsigned int) * 3 * width * height);
+   // Allocate memories
+   unsigned int size_in_bytes = sizeof(unsigned char) * N_COMPONENT * width * height;
+   unsigned char *h_img = NULL;
+   unsigned char *d_img = NULL;
+   unsigned char *d_tmp = NULL;
 
+   h_img = (unsigned char *)malloc(size_in_bytes);
+   if (!h_img)
+      return fprintf(stderr, "Cannot allocate memory\n"), 2;
+   err = cudaMalloc(&d_img, size_in_bytes);
+   gpuErrCheck(err);
+   err = cudaMalloc(&d_tmp, size_in_bytes);
+   gpuErrCheck(err);
+
+   // Get pixels
    BYTE *bits = (BYTE *)FreeImage_GetBits(bitmap);
    for (int y = 0; y < height; y++) {
       BYTE *pixel = (BYTE *)bits;
       for (int x = 0; x < width; x++) {
-         int idx = ((y * width) + x) * 3;
-         img[idx + 0] = pixel[FI_RGBA_RED];
-         img[idx + 1] = pixel[FI_RGBA_GREEN];
-         img[idx + 2] = pixel[FI_RGBA_BLUE];
-         pixel += 3;
+         int idx = ((y * width) + x) * N_COMPONENT;
+         h_img[idx + 0] = pixel[FI_RGBA_RED];
+         h_img[idx + 1] = pixel[FI_RGBA_GREEN];
+         h_img[idx + 2] = pixel[FI_RGBA_BLUE];
+         pixel += N_COMPONENT;
       }
       // next line
       bits += pitch;
    }
 
-   memcpy(d_img, img, 3 * width * height * sizeof(unsigned int));
-   memcpy(d_tmp, img, 3 * width * height * sizeof(unsigned int));
+   // Copy host array to device array
+   err = cudaMemcpy(d_img, h_img, size_in_bytes, cudaMemcpyHostToDevice);
+   gpuErrCheck(err);
 
-   // // Kernel
+   // Define grid and blocks
+   size_t grid_x = width / N_THREADS + 1;
+   size_t grid_y = height / N_THREADS + 1;
+   dim3 dim_grid(grid_x, grid_y);
+   dim3 dim_block(N_THREADS, N_THREADS);
+
+   fprintf(stderr, "Using a grid (%d, %d, %d) of blocks (%d, %d, %d)\n", dim_grid.x, dim_grid.y,
+           dim_grid.z, dim_block.x, dim_block.y, dim_block.z);
+
+   //
+   if (saturate != NOSATURATION)
+      saturate_image(dim_grid, dim_block, d_img, height, width, saturate);
+
+   // Kernel
    // for (int y = 0; y < height; y++) {
    //    for (int x = 0; x < width; x++) {
    //       int ida = ((y * width) + x) * 3;
@@ -173,35 +253,38 @@ int main(int argc, char **argv)
    //    }
    // }
 
-   // Copy back
-   memcpy(img, d_img, 3 * width * height * sizeof(unsigned int));
+   // // Copy back
+   // memcpy(img, d_img, 3 * width * height * sizeof(unsigned int));
+   err = cudaMemcpy(h_img, d_img, size_in_bytes, cudaMemcpyDeviceToHost);
+   gpuErrCheck(err);
 
+   // Store pixels
    bits = (BYTE *)FreeImage_GetBits(bitmap);
    for (int y = 0; y < height; y++) {
       BYTE *pixel = (BYTE *)bits;
       for (int x = 0; x < width; x++) {
          RGBQUAD newcolor;
 
-         int idx = ((y * width) + x) * 3;
-         newcolor.rgbRed = img[idx + 0];
-         newcolor.rgbGreen = img[idx + 1];
-         newcolor.rgbBlue = img[idx + 2];
+         int idx = (y * width + x) * N_COMPONENT;
+         newcolor.rgbRed = h_img[idx + 0];
+         newcolor.rgbGreen = h_img[idx + 1];
+         newcolor.rgbBlue = h_img[idx + 2];
 
-         if (!FreeImage_SetPixelColor(bitmap, x, y, &newcolor)) {
+         if (!FreeImage_SetPixelColor(bitmap, x, y, &newcolor))
             fprintf(stderr, "(%d, %d) Fail...\n", x, y);
-         }
 
-         pixel += 3;
+         pixel += N_COMPONENT;
       }
       // next line
       bits += pitch;
    }
 
-   if (FreeImage_Save(FIF_PNG, bitmap, PathDest, 0))
-      cout << "Image successfully saved ! " << endl;
+   if (FreeImage_Save(FIF_PNG, bitmap, output, 0))
+      printf("Image successfully saved ! \n");
+
    FreeImage_DeInitialise(); // Cleanup !
 
-   free(img);
-   free(d_img);
-   free(d_tmp);
+   free(h_img);
+   cudaFree(d_img);
+   cudaFree(d_tmp);
 }
