@@ -63,7 +63,7 @@ __host__ int usage(char *exec)
 
           "-s, --saturate <r,g,b>  Saturate an RGB component of the image\n"
           "-f, --flip <h,v>        Flip image horizontally, vertically\n"
-          "-b, --blur              Blur image\n"
+          "-b, --blur [it]         Blur image it times. Default : 1\n"
 
           "-h, --help              Show this message and exit\n"
           // "-d, --debug          Enable debug mode\n"
@@ -231,7 +231,13 @@ int main(int argc, char **argv)
    i = 1;
    while (i < (size_t)argc && strlen(argv[i]) > 1 && argv[i][0] == '-') {
       if (!strcmp(argv[i], "-b") || !strcmp(argv[i], "--blur")) {
-         blur_image(dim_grid, dim_block, d_img, d_tmp, height, width);
+         size_t max_it = 1;
+         if (hasarg(i, argc, argv)) {
+            max_it = atoi(argv[i + 1]);
+            i++;
+         }
+         for (size_t it = 0; it < max_it; ++it)
+            blur_image(dim_grid, dim_block, d_img, d_tmp, height, width);
       }
       else if (!strcmp(argv[i], "-f") || !strcmp(argv[i], "--flip")) {
          if (hasarg(i, argc, argv)) {
