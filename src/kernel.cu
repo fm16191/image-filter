@@ -43,6 +43,29 @@ __global__ void vertical_flip_kernel(unsigned char *d_img, const unsigned char *
 
    if (id < size) {
       for (size_t i = 0; i < N_COMPONENT; ++i)
-         d_img[id * N_COMPONENT + i] = d_tmp[(size - id) * N_COMPONENT + i]; // Flip vertical
+         d_img[id * N_COMPONENT + i] = d_tmp[(size - id) * N_COMPONENT + i];
+   }
+}
+
+__global__ void blur_kernel(unsigned char *d_img, const unsigned char *d_tmp, const int height,
+                            const int width)
+{
+   int id = index();
+
+   int size = height * width;
+
+   if (id < size) {
+      for (size_t i = 0; i < N_COMPONENT; ++i) {
+         size_t mean = (size_t)d_tmp[id * N_COMPONENT + i];
+         if ((id + 1) % width != 0)
+            mean += (size_t)d_tmp[(id + 1) * N_COMPONENT + i];
+         if (id % width != 0)
+            mean += (size_t)d_tmp[(id - 1) * N_COMPONENT + i];
+         if (id > width)
+            mean += (size_t)d_tmp[(id - width) * N_COMPONENT + i];
+         if (id < size - width)
+            mean += (size_t)d_tmp[(id + width) * N_COMPONENT + i];
+         d_img[id * N_COMPONENT + i] = (unsigned char)(mean / 5);
+      }
    }
 }

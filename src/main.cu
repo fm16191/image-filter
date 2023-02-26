@@ -61,6 +61,7 @@ __host__ int usage(char *exec)
 
           "-s, --saturate <r,g,b>  Saturate an RGB component of the image\n"
           "-f, --flip <h,v>        Flip image horizontally, vertically\n"
+          "-b, --blur              Blur image\n"
 
           "-h, --help              Show this message and exit\n"
           // "-d, --debug          Enable debug mode\n"
@@ -120,10 +121,29 @@ __host__ void flip_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, un
           milliseconds / 1e3);
 }
 
+__host__ void blur_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, unsigned char *d_tmp,
+                         size_t height, size_t width)
+{
+   cudaEvent_t start, stop;
+   cudaEventCreate(&start);
+   cudaEventCreate(&stop);
+
+   cudaEventRecord(start);
+   blur_kernel<<<dim_grid, dim_block>>>(d_img, d_tmp, height, width);
+   cudaEventRecord(stop);
+
+   cudaDeviceSynchronize();
+   cudaEventSynchronize(stop);
+   float milliseconds = 0;
+   cudaEventElapsedTime(&milliseconds, start, stop);
+   printf("Image flip (horizontally) in %e s\n", milliseconds / 1e3);
+}
+
 int main(int argc, char **argv)
 {
    size_t i = 1;
-   size_t debug = 0;
+   // size_t debug = 0;
+   size_t blur = 0;
    cudaError_t err;
 
    char *input = strdup("img.jpg");
@@ -135,9 +155,12 @@ int main(int argc, char **argv)
    while (i < (size_t)argc && strlen(argv[i]) > 1 && argv[i][0] == '-') {
       if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help"))
          return usage(argv[0]);
-      else if (!strcmp(argv[i], "-d") || !strcmp(argv[i], "--debug")) {
-         printf("Since debug mode has been activated, repetitions are set to 1.\n");
-         debug = 1;
+      // else if (!strcmp(argv[i], "-d") || !strcmp(argv[i], "--debug")) {
+      //    printf("Since debug mode has been activated, repetitions are set to 1.\n");
+      //    debug = 1;
+      // }
+      else if (!strcmp(argv[i], "-b") || !strcmp(argv[i], "--blur")) {
+         blur = 1;
       }
       else if (!strcmp(argv[i], "-i") || !strcmp(argv[i], "--input")) {
          if (hasarg(i, argc, argv))
@@ -195,11 +218,14 @@ int main(int argc, char **argv)
    unsigned int size_in_bytes = sizeof(unsigned char) * N_COMPONENT * width * height;
    unsigned char *h_img = NULL;
    unsigned char *d_img = NULL;
+   unsigned char *d_tmp = NULL;
 
    h_img = (unsigned char *)malloc(size_in_bytes);
    if (!h_img)
       return fprintf(stderr, "Cannot allocate memory\n"), 2;
    err = cudaMalloc(&d_img, size_in_bytes);
+   gpuErrCheck(err);
+   err = cudaMalloc(&d_tmp, size_in_bytes);
    gpuErrCheck(err);
 
    // Get pixels
@@ -207,6 +233,8 @@ int main(int argc, char **argv)
 
    // Copy host array to device array
    err = cudaMemcpy(d_img, h_img, size_in_bytes, cudaMemcpyHostToDevice);
+   gpuErrCheck(err);
+   err = cudaMemcpy(d_tmp, h_img, size_in_bytes, cudaMemcpyHostToDevice);
    gpuErrCheck(err);
 
    // Define grid and blocks
@@ -222,18 +250,11 @@ int main(int argc, char **argv)
    if (saturate != NOSATURATION)
       saturate_image(dim_grid, dim_block, d_img, height, width, saturate);
 
-   if (orientation != NOFLIP) {
-      unsigned char *d_tmp = NULL;
-      err = cudaMalloc(&d_tmp, size_in_bytes);
-      gpuErrCheck(err);
-
-      err = cudaMemcpy(d_tmp, h_img, size_in_bytes, cudaMemcpyHostToDevice);
-      gpuErrCheck(err);
-
+   if (orientation != NOFLIP)
       flip_image(dim_grid, dim_block, d_img, d_tmp, height, width, orientation);
 
-      cudaFree(d_tmp);
-   }
+   if (blur)
+      blur_image(dim_grid, dim_block, d_img, d_tmp, height, width);
 
    // Kernel
    // for (int y = 0; y < height; y++) {
@@ -313,5 +334,5 @@ int main(int argc, char **argv)
 
    free(h_img);
    cudaFree(d_img);
-   // cudaFree(d_tmp);
+   cudaFree(d_tmp);
 }
