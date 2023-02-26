@@ -16,5 +16,9 @@ inline void gpuAssert(cudaError_t code, const char *file, int line)
 }
 
 __global__ void saturate_component(unsigned char *d_img, const size_t size, const size_t index);
+__global__ void horizontal_flip_kernel(unsigned char *d_img, const unsigned char *d_tmp,
+                                       const size_t width, const size_t size);
+__global__ void vertical_flip_kernel(unsigned char *d_img, const unsigned char *d_tmp,
+                                     const size_t size);
 
 #endif // _KERNEL_H_

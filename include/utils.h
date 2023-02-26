@@ -17,6 +17,12 @@ enum saturate_t {
    NOSATURATION
 };
 
+enum orientation_t {
+   HORIZONTAL,
+   VERTICAL,
+   NOFLIP
+};
+
 // __host__ static void load_pixels(FIBITMAP *bitmap, unsigned char *h_img, const size_t height,
 //                                  const size_t width, const size_t pitch);
 // __host__ static void store_pixels(FIBITMAP *bitmap, unsigned char *h_img, const size_t height,
@@ -25,4 +31,4 @@ enum saturate_t {
 // __host__ int usage(char *exec);
 // __host__ int hasarg(size_t i, int argc, char **argv);
 
-#endif
+#endif // _UTILS_H_

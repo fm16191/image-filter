@@ -60,6 +60,7 @@ __host__ int usage(char *exec)
           "-o, --output <out.jpg>  Output JPG filepath. Default : `new_img.jpg`\n"
 
           "-s, --saturate <r,g,b>  Saturate an RGB component of the image\n"
+          "-f, --flip <h,v>        Flip image horizontally, vertically\n"
 
           "-h, --help              Show this message and exit\n"
           // "-d, --debug          Enable debug mode\n"
@@ -97,6 +98,27 @@ __host__ void saturate_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img
           (saturate == R) ? "red" : (saturate == G ? "green" : "blue"), milliseconds / 1e3);
 }
 
+__host__ void flip_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, unsigned char *d_tmp,
+                         size_t height, size_t width, orientation_t orientation)
+{
+   cudaEvent_t start, stop;
+   cudaEventCreate(&start);
+   cudaEventCreate(&stop);
+
+   cudaEventRecord(start);
+   if (orientation == HORIZONTAL)
+      horizontal_flip_kernel<<<dim_grid, dim_block>>>(d_img, d_tmp, width, height * width);
+   else
+      vertical_flip_kernel<<<dim_grid, dim_block>>>(d_img, d_tmp, height * width);
+   cudaEventRecord(stop);
+
+   cudaDeviceSynchronize();
+   cudaEventSynchronize(stop);
+   float milliseconds = 0;
+   cudaEventElapsedTime(&milliseconds, start, stop);
+   printf("Image flip (horizontally) in %e s\n", milliseconds / 1e3);
+}
+
 int main(int argc, char **argv)
 {
    size_t i = 1;
@@ -107,6 +129,7 @@ int main(int argc, char **argv)
    char *output = strdup("new_img.jpg");
 
    enum saturate_t saturate = NOSATURATION;
+   enum orientation_t orientation = NOFLIP;
 
    while (i < (size_t)argc && strlen(argv[i]) > 1 && argv[i][0] == '-') {
       if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help"))
@@ -123,6 +146,17 @@ int main(int argc, char **argv)
       else if (!strcmp(argv[i], "-o") || !strcmp(argv[i], "--output")) {
          if (hasarg(i, argc, argv))
             output = argv[i + 1];
+         i++;
+      }
+      else if (!strcmp(argv[i], "-f") || !strcmp(argv[i], "--flip")) {
+         if (hasarg(i, argc, argv)) {
+            if (!strcmp(argv[i + 1], "h"))
+               orientation = HORIZONTAL;
+            else if (!strcmp(argv[i + 1], "v"))
+               orientation = VERTICAL;
+            else
+               return printf("--flip option must be in <h,v>\n"), usage(argv[0]);
+         }
          i++;
       }
       else if (!strcmp(argv[i], "-s") || !strcmp(argv[i], "--saturate")) {
@@ -160,15 +194,12 @@ int main(int argc, char **argv)
    unsigned int size_in_bytes = sizeof(unsigned char) * N_COMPONENT * width * height;
    unsigned char *h_img = NULL;
    unsigned char *d_img = NULL;
-   // unsigned char *d_tmp = NULL;
 
    h_img = (unsigned char *)malloc(size_in_bytes);
    if (!h_img)
       return fprintf(stderr, "Cannot allocate memory\n"), 2;
    err = cudaMalloc(&d_img, size_in_bytes);
    gpuErrCheck(err);
-   // err = cudaMalloc(&d_tmp, size_in_bytes);
-   // gpuErrCheck(err);
 
    // Get pixels
    load_pixels(bitmap, h_img, height, width, pitch);
@@ -189,6 +220,19 @@ int main(int argc, char **argv)
    //
    if (saturate != NOSATURATION)
       saturate_image(dim_grid, dim_block, d_img, height, width, saturate);
+
+   if (orientation != NOFLIP) {
+      unsigned char *d_tmp = NULL;
+      err = cudaMalloc(&d_tmp, size_in_bytes);
+      gpuErrCheck(err);
+
+      err = cudaMemcpy(d_tmp, h_img, size_in_bytes, cudaMemcpyHostToDevice);
+      gpuErrCheck(err);
+
+      flip_image(dim_grid, dim_block, d_img, d_tmp, height, width, orientation);
+
+      cudaFree(d_tmp);
+   }
 
    // Kernel
    // for (int y = 0; y < height; y++) {
