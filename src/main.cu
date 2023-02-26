@@ -136,7 +136,7 @@ __host__ void blur_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, un
    cudaEventSynchronize(stop);
    float milliseconds = 0;
    cudaEventElapsedTime(&milliseconds, start, stop);
-   printf("Image flip (horizontally) in %e s\n", milliseconds / 1e3);
+   printf("Image blurred in %e s\n", milliseconds / 1e3);
 }
 
 int main(int argc, char **argv)
