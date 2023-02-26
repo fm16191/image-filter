@@ -20,6 +20,6 @@ __global__ void horizontal_flip_kernel(unsigned char *d_img, const unsigned char
                                        const size_t width, const size_t size);
 __global__ void vertical_flip_kernel(unsigned char *d_img, const unsigned char *d_tmp,
                                      const size_t size);
-__global__ void blur_kernel(unsigned char *d_img, const unsigned char *d_tmp, const int height,
-                            const int width);
+__global__ void blur_kernel(unsigned char *d_img, const unsigned char *d_tmp, const size_t height,
+                            const size_t width);
 #endif // _KERNEL_H_

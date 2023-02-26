@@ -47,12 +47,12 @@ __global__ void vertical_flip_kernel(unsigned char *d_img, const unsigned char *
    }
 }
 
-__global__ void blur_kernel(unsigned char *d_img, const unsigned char *d_tmp, const int height,
-                            const int width)
+__global__ void blur_kernel(unsigned char *d_img, const unsigned char *d_tmp, const size_t height,
+                            const size_t width)
 {
-   int id = index();
+   size_t id = index();
 
-   int size = height * width;
+   size_t size = height * width;
 
    if (id < size) {
       for (size_t i = 0; i < N_COMPONENT; ++i) {
