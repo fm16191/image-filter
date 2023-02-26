@@ -97,15 +97,15 @@ __host__ int hasarg(size_t i, int argc, char **argv)
 }
 
 __host__ void saturate_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, size_t height,
-                             size_t width, saturate_t saturate)
+                             size_t width, component_t component)
 {
    cudaEventRecord(start);
-   saturate_component<<<dim_grid, dim_block>>>(d_img, height * width, saturate);
+   saturate_component<<<dim_grid, dim_block>>>(d_img, height * width, component);
    cudaEventRecord(stop);
 
    float milliseconds = cudaTimerCompute(start, stop);
    printf("Image saturation (%s) in %e s\n",
-          (saturate == R) ? "red" : (saturate == G ? "green" : "blue"), milliseconds / 1e3);
+          (component == R) ? "red" : (component == G ? "green" : "blue"), milliseconds / 1e3);
 }
 
 __host__ void flip_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, unsigned char *d_tmp,
@@ -150,6 +150,7 @@ __host__ void grayscale_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_im
    float milliseconds = cudaTimerCompute(start, stop);
    printf("Image grayscaled in %e s\n", milliseconds / 1e3);
 }
+
 __host__ void negative_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, size_t height,
                               size_t width)
 {
@@ -184,8 +185,8 @@ int main(int argc, char **argv)
    char *input = strdup("img.jpg");
    char *output = strdup("new_img.jpg");
 
-   enum saturate_t saturate = NOSATURATION;
-   enum orientation_t orientation = NOFLIP;
+   enum component_t component = NO_COMPONENT;
+   enum orientation_t orientation = NO_ORIENTATION;
 
    /* Parse program options */
    while (i < (size_t)argc && strlen(argv[i]) > 1 && argv[i][0] == '-') {
@@ -296,15 +297,15 @@ int main(int argc, char **argv)
       else if (!strcmp(argv[i], "-s") || !strcmp(argv[i], "--saturate")) {
          if (hasarg(i, argc, argv)) {
             if (!strcmp(argv[i + 1], "r"))
-               saturate = R;
+               component = R;
             else if (!strcmp(argv[i + 1], "g"))
-               saturate = G;
+               component = G;
             else if (!strcmp(argv[i + 1], "b"))
-               saturate = B;
+               component = B;
             else
                return printf("--saturate option must be in <r,g,b>\n"), usage(argv[0]);
             //
-            saturate_image(dim_grid, dim_block, d_img, height, width, saturate);
+            saturate_image(dim_grid, dim_block, d_img, height, width, component);
          }
          i++;
       }

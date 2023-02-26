@@ -10,17 +10,17 @@
 #define N_COMPONENT 3 // we have 3 component (RGB)
 #define FULL 255      // Max rgb value
 
-enum saturate_t {
+enum component_t {
    R,
    G,
    B,
-   NOSATURATION
+   NO_COMPONENT
 };
 
 enum orientation_t {
    HORIZONTAL,
    VERTICAL,
-   NOFLIP
+   NO_ORIENTATION
 };
 
 // __host__ static void load_pixels(FIBITMAP *bitmap, unsigned char *h_img, const size_t height,
