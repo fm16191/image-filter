@@ -11,6 +11,8 @@
 
 #define ALLOC_SIZE_BYTES (sizeof(unsigned char) * N_COMPONENT * width * height)
 
+static cudaEvent_t start, stop;
+
 __host__ static void load_pixels(FIBITMAP *bitmap, unsigned char *h_img, const size_t height,
                                  const size_t width, const size_t pitch)
 {
@@ -51,6 +53,15 @@ __host__ static void store_pixels(FIBITMAP *bitmap, unsigned char *h_img, const 
    }
 }
 
+__host__ float cudaTimerCompute(cudaEvent_t start, cudaEvent_t stop)
+{
+   cudaDeviceSynchronize();
+   cudaEventSynchronize(stop);
+   float milliseconds = 0.;
+   cudaEventElapsedTime(&milliseconds, start, stop);
+   return milliseconds;
+}
+
 __host__ int usage(char *exec)
 {
    printf("Usage : %s -i <in.jpg> -o <out.jpg> [-s]\n", exec);
@@ -85,18 +96,11 @@ __host__ int hasarg(size_t i, int argc, char **argv)
 __host__ void saturate_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, size_t height,
                              size_t width, saturate_t saturate)
 {
-   cudaEvent_t start, stop;
-   cudaEventCreate(&start);
-   cudaEventCreate(&stop);
-
    cudaEventRecord(start);
    saturate_component<<<dim_grid, dim_block>>>(d_img, height * width, saturate);
    cudaEventRecord(stop);
 
-   cudaDeviceSynchronize();
-   cudaEventSynchronize(stop);
-   float milliseconds = 0;
-   cudaEventElapsedTime(&milliseconds, start, stop);
+   float milliseconds = cudaTimerCompute(start, stop);
    printf("Image saturation (%s) in %e s\n",
           (saturate == R) ? "red" : (saturate == G ? "green" : "blue"), milliseconds / 1e3);
 }
@@ -104,10 +108,6 @@ __host__ void saturate_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img
 __host__ void flip_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, unsigned char *d_tmp,
                          size_t height, size_t width, orientation_t orientation)
 {
-   cudaEvent_t start, stop;
-   cudaEventCreate(&start);
-   cudaEventCreate(&stop);
-
    cudaError_t err = cudaMemcpy(d_tmp, d_img, ALLOC_SIZE_BYTES, cudaMemcpyDeviceToDevice);
    gpuErrCheck(err);
 
@@ -118,10 +118,7 @@ __host__ void flip_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, un
       vertical_flip_kernel<<<dim_grid, dim_block>>>(d_img, d_tmp, height * width);
    cudaEventRecord(stop);
 
-   cudaDeviceSynchronize();
-   cudaEventSynchronize(stop);
-   float milliseconds = 0;
-   cudaEventElapsedTime(&milliseconds, start, stop);
+   float milliseconds = cudaTimerCompute(start, stop);
    printf("Image flip (%s) in %e s\n", (orientation == HORIZONTAL) ? "horizontally" : "vertically",
           milliseconds / 1e3);
 }
@@ -129,10 +126,6 @@ __host__ void flip_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, un
 __host__ void blur_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, unsigned char *d_tmp,
                          size_t height, size_t width)
 {
-   cudaEvent_t start, stop;
-   cudaEventCreate(&start);
-   cudaEventCreate(&stop);
-
    cudaError_t err = cudaMemcpy(d_tmp, d_img, ALLOC_SIZE_BYTES, cudaMemcpyDeviceToDevice);
    gpuErrCheck(err);
 
@@ -140,38 +133,24 @@ __host__ void blur_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, un
    blur_kernel<<<dim_grid, dim_block>>>(d_img, d_tmp, height, width);
    cudaEventRecord(stop);
 
-   cudaDeviceSynchronize();
-   cudaEventSynchronize(stop);
-   float milliseconds = 0;
-   cudaEventElapsedTime(&milliseconds, start, stop);
+   float milliseconds = cudaTimerCompute(start, stop);
    printf("Image blurred in %e s\n", milliseconds / 1e3);
 }
 
 __host__ void grayscale_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, size_t height,
                               size_t width)
 {
-   cudaEvent_t start, stop;
-   cudaEventCreate(&start);
-   cudaEventCreate(&stop);
-
    cudaEventRecord(start);
    grayscale_kernel<<<dim_grid, dim_block>>>(d_img, height * width);
    cudaEventRecord(stop);
 
-   cudaDeviceSynchronize();
-   cudaEventSynchronize(stop);
-   float milliseconds = 0;
-   cudaEventElapsedTime(&milliseconds, start, stop);
+   float milliseconds = cudaTimerCompute(start, stop);
    printf("Image grayscaled in %e s\n", milliseconds / 1e3);
 }
 
 __host__ void sobel_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, unsigned char *d_tmp,
                           size_t height, size_t width)
 {
-   cudaEvent_t start, stop;
-   cudaEventCreate(&start);
-   cudaEventCreate(&stop);
-
    cudaError_t err = cudaMemcpy(d_tmp, d_img, ALLOC_SIZE_BYTES, cudaMemcpyDeviceToDevice);
    gpuErrCheck(err);
 
@@ -179,10 +158,7 @@ __host__ void sobel_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, u
    sobel_kernel<<<dim_grid, dim_block>>>(d_img, d_tmp, height, width);
    cudaEventRecord(stop);
 
-   cudaDeviceSynchronize();
-   cudaEventSynchronize(stop);
-   float milliseconds = 0;
-   cudaEventElapsedTime(&milliseconds, start, stop);
+   float milliseconds = cudaTimerCompute(start, stop);
    printf("Image filtered with sobel in %e s\n", milliseconds / 1e3);
 }
 
@@ -222,6 +198,10 @@ int main(int argc, char **argv)
    /* -------------- */
    /* Initialisation */
    /* -------------- */
+
+   cudaEventCreate(&start);
+   cudaEventCreate(&stop);
+
    FreeImage_Initialise();
 
    // load and decode a regular file
