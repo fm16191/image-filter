@@ -64,14 +64,16 @@ __host__ float cudaTimerCompute(cudaEvent_t start, cudaEvent_t stop)
 
 __host__ int usage(char *exec)
 {
-   printf("Usage : %s -i <in.jpg> -o <out.jpg> [-s]\n", exec);
+   printf("Usage : %s -i <in.jpg> -o <out.jpg> [-hglnp] [-s <r,g,b>] [-x <r,g,b>] [-f <h,v>] [-b "
+          "[it]] [-r WxH[+x+y]]\n",
+          exec);
 
    printf("\n");
 
    printf("Options : \n"
           "-i, --input <in.jpg>    Input JPG filepath. Default : `img.jpg`\n"
           "-o, --output <out.jpg>  Output JPG filepath. Default : `new_img.jpg`\n"
-
+          "\n"
           "-s, --saturate <r,g,b>  Saturate an RGB component of the image\n"
           "-x, --extract <r,g,b>   Extract an RGB component of the image\n"
           "-f, --flip <h,v>        Flip image horizontally, vertically\n"
@@ -79,9 +81,9 @@ __host__ int usage(char *exec)
           "-g, --grayscale         Gray scale image.\n"
           "-l, --sobel             Apply a Sobel filter to the image.\n"
           "-n, --negative          Transform image into a negative.\n"
-          "-r, --resize [WxH+x+y]  Resize image with WxH dimensions at x,y offsets.\n"
+          "-r, --resize WxH[+x+y]  Resize image with WxH dimensions at x,y offsets.\n"
           "-p, --pop-art           Create a pop-art combinaison out of the original image.\n"
-
+          "\n"
           "-h, --help              Show this message and exit\n"
           // "-d, --debug          Enable debug mode\n"
    );
