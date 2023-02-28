@@ -204,6 +204,7 @@ __host__ void resize_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img,
    float milliseconds = cudaTimerCompute(start, stop);
    printf("Image resized (%dx%d+%d+%d) in %e s\n", x, y, px, py, milliseconds / 1e3);
 }
+
 int main(int argc, char **argv)
 {
    size_t i = 1;
@@ -366,6 +367,8 @@ int main(int argc, char **argv)
             char *delim;
             int values[4] = { 0 };
 
+            char *tmp = strdup(argv[i + 1]);
+
             if (strchr(argv[i + 1], 'x') != NULL) {
                delim = strdup("x");
                token = strtok(argv[i + 1], delim);
@@ -374,9 +377,10 @@ int main(int argc, char **argv)
                   token = strtok(NULL, delim);
                }
             }
-            if (strchr(argv[i + 1], '+') != NULL) {
+            if (strchr(tmp, '+') != NULL) {
                delim = strdup("+");
-               token = strtok(argv[i + 1], delim);
+               token = strtok(tmp, delim);
+               token = strtok(NULL, delim);
                for (int i = 2; i < 4 && token != NULL; i++) {
                   values[i] = atoi(token);
                   token = strtok(NULL, delim);
@@ -387,8 +391,6 @@ int main(int argc, char **argv)
             int new_h = values[1];
             int off_x = values[2];
             int off_y = values[3];
-
-            printf("x=%d, y=%d, px=%d, py=%d\n", new_w, new_h, off_x, off_y);
 
             resize_image(dim_grid, dim_block, d_img, d_tmp, width, height, new_w, new_h, off_x,
                          off_y);
