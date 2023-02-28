@@ -164,10 +164,11 @@ __global__ void resize_kernel(unsigned char *d_img, const unsigned char *d_tmp, 
    size_t row = blockIdx.y * blockDim.y + threadIdx.y;
 
    if (row + off_x < new_w && row + off_x > 0 && col + off_y < new_h && col + off_y > 0) {
-      const float scale_factor = (float)new_w / (float)old_w;
+      const float w_factor = (float)new_w / (float)old_w;
+      const float h_factor = (float)new_h / (float)old_h;
 
-      const size_t old_row = (size_t)((float)row / scale_factor);
-      const size_t old_col = (size_t)((float)col / scale_factor);
+      const size_t old_row = (size_t)((float)row / w_factor);
+      const size_t old_col = (size_t)((float)col / h_factor);
 
       const size_t old_idx = (old_col * old_w + old_row + off_y) * N_COMPONENT;
       const size_t new_idx = ((col + off_x) * old_w + row + off_y) * N_COMPONENT;
