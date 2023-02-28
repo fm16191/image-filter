@@ -212,16 +212,34 @@ __host__ void pop_art_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img,
                             size_t height)
 {
    cudaEventRecord(start);
+
+   //
+   cudaStream_t stream[4];
+   for (int i = 0; i < 4; i++)
+      cudaStreamCreate(&stream[i]);
+
    for (size_t i = 0; i < 4; ++i) {
-      cudaError_t err = cudaMemcpy(d_tmp, d_save, ALLOC_SIZE_BYTES, cudaMemcpyDeviceToDevice);
+      cudaError_t err =
+         cudaMemcpyAsync(d_tmp, d_save, ALLOC_SIZE_BYTES, cudaMemcpyDeviceToDevice, stream[i]);
       gpuErrCheck(err);
+      cudaStreamSynchronize(stream[i]);
+
       if (i == 3)
-         grayscale_image(dim_grid, dim_block, d_tmp, height, width);
+         grayscale_kernel<<<dim_grid, dim_block, 0, stream[i]>>>(d_tmp, height * width);
       else
-         saturate_image(dim_grid, dim_block, d_tmp, height, width, (component_t)i);
-      resize_kernel<<<dim_grid, dim_block>>>(d_img, d_tmp, width, height, width / 2, height / 2,
-                                             width / 2 * (i / 2), height / 2 * (i % 2));
+         saturate_component<<<dim_grid, dim_block, 0, stream[i]>>>(d_tmp, height * width,
+                                                                   (component_t)i);
+      cudaStreamSynchronize(stream[i]);
+      resize_kernel<<<dim_grid, dim_block, 0, stream[i]>>>(d_img, d_tmp, width, height, width / 2,
+                                                           height / 2, width / 2 * (i / 2),
+                                                           height / 2 * (i % 2));
    }
+
+   //
+   for (int i = 0; i < 4; i++)
+      cudaStreamSynchronize(stream[i]);
+
+   //
    cudaEventRecord(stop);
 
    float milliseconds = cudaTimerCompute(start, stop);
