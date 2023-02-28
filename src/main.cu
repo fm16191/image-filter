@@ -191,18 +191,19 @@ __host__ void sobel_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, u
 }
 
 __host__ void resize_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img,
-                           unsigned char *d_tmp, size_t width, size_t height, int x, int y, int px,
-                           int py)
+                           unsigned char *d_tmp, size_t width, size_t height, size_t new_w,
+                           size_t new_h, int off_x, int off_y)
 {
    cudaError_t err = cudaMemcpy(d_tmp, d_img, ALLOC_SIZE_BYTES, cudaMemcpyDeviceToDevice);
    gpuErrCheck(err);
 
    cudaEventRecord(start);
-   resize_kernel<<<dim_grid, dim_block>>>(d_img, d_tmp, width, height, (size_t)x, (size_t)y);
+   resize_kernel<<<dim_grid, dim_block>>>(d_img, d_tmp, width, height, new_w, new_h, off_x, off_y);
    cudaEventRecord(stop);
 
    float milliseconds = cudaTimerCompute(start, stop);
-   printf("Image resized (%dx%d+%d+%d) in %e s\n", x, y, px, py, milliseconds / 1e3);
+   printf("Image resized (%ldx%ld+%d+%d) in %e s\n", new_w, new_h, off_x, off_y,
+          milliseconds / 1e3);
 }
 
 int main(int argc, char **argv)
