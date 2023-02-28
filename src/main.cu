@@ -79,8 +79,8 @@ __host__ int usage(char *exec)
           "-g, --grayscale         Gray scale image.\n"
           "-l, --sobel             Apply a Sobel filter to the image.\n"
           "-n, --negative          Transform image into a negative.\n"
-          "-r, --resize [WxH+x+y]  Resize image with WxH dimensions at x,y offsets"
-          "-p, --pop-art           Create a pop-art combinaison out of the original image"
+          "-r, --resize [WxH+x+y]  Resize image with WxH dimensions at x,y offsets.\n"
+          "-p, --pop-art           Create a pop-art combinaison out of the original image.\n"
 
           "-h, --help              Show this message and exit\n"
           // "-d, --debug          Enable debug mode\n"
