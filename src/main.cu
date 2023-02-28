@@ -217,7 +217,11 @@ int main(int argc, char **argv)
    enum orientation_t orientation = NO_ORIENTATION;
 
    /* Parse program options */
-   while (i < (size_t)argc && strlen(argv[i]) > 1 && argv[i][0] == '-') {
+   while (i < (size_t)argc) {
+      if (strlen(argv[i]) <= 1 || argv[i][0] != '-') {
+         i++;
+         continue;
+      }
       if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help"))
          return usage(argv[0]);
       // else if (!strcmp(argv[i], "-d") || !strcmp(argv[i], "--debug")) {
@@ -290,7 +294,11 @@ int main(int argc, char **argv)
 
    /* Parse filters arguments */
    i = 1;
-   while (i < (size_t)argc && strlen(argv[i]) > 1 && argv[i][0] == '-') {
+   while (i < (size_t)argc) {
+      if (strlen(argv[i]) <= 1 || argv[i][0] != '-') {
+         i++;
+         continue;
+      }
       if (!strcmp(argv[i], "-b") || !strcmp(argv[i], "--blur")) {
          size_t max_it = 1;
          if (hasarg(i, argc, argv)) {
