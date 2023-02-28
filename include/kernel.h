@@ -28,5 +28,7 @@ __global__ void sobel_kernel(unsigned char *d_img, const unsigned char *d_tmp, c
 __global__ void negative_kernel(unsigned char *d_img, const size_t size);
 __global__ void extract_component(unsigned char *d_img, const size_t size,
                                   const size_t component_index);
+__global__ void resize_kernel(unsigned char *d_img, const unsigned char *d_tmp, const size_t old_w,
+                              const size_t old_h, const size_t new_w, const size_t new_h);
 
 #endif // _KERNEL_H_

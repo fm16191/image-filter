@@ -73,12 +73,13 @@ __host__ int usage(char *exec)
           "-o, --output <out.jpg>  Output JPG filepath. Default : `new_img.jpg`\n"
 
           "-s, --saturate <r,g,b>  Saturate an RGB component of the image\n"
-          "-s, --extract <r,g,b>   Extract an RGB component of the image\n"
+          "-x, --extract <r,g,b>   Extract an RGB component of the image\n"
           "-f, --flip <h,v>        Flip image horizontally, vertically\n"
           "-b, --blur [it]         Blur image `it` times. Default : `1`\n"
           "-g, --grayscale         Gray scale image.\n"
           "-l, --sobel             Apply a Sobel filter to the image.\n"
           "-n, --negative          Transform image into a negative.\n"
+          "-r, --resize [WxH+x+y]  Resize image with WxH dimensions at x,y offsets"
 
           "-h, --help              Show this message and exit\n"
           // "-d, --debug          Enable debug mode\n"
@@ -189,6 +190,20 @@ __host__ void sobel_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img, u
    printf("Image filtered with sobel in %e s\n", milliseconds / 1e3);
 }
 
+__host__ void resize_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img,
+                           unsigned char *d_tmp, size_t width, size_t height, int x, int y, int px,
+                           int py)
+{
+   cudaError_t err = cudaMemcpy(d_tmp, d_img, ALLOC_SIZE_BYTES, cudaMemcpyDeviceToDevice);
+   gpuErrCheck(err);
+
+   cudaEventRecord(start);
+   resize_kernel<<<dim_grid, dim_block>>>(d_img, d_tmp, width, height, (size_t)x, (size_t)y);
+   cudaEventRecord(stop);
+
+   float milliseconds = cudaTimerCompute(start, stop);
+   printf("Image resized (%dx%d+%d+%d) in %e s\n", x, y, px, py, milliseconds / 1e3);
+}
 int main(int argc, char **argv)
 {
    size_t i = 1;
@@ -334,6 +349,41 @@ int main(int argc, char **argv)
                return printf("--extract option must be in <r,g,b>\n"), usage(argv[0]);
             //
             color_extraction_image(dim_grid, dim_block, d_img, height, width, component);
+         }
+         i++;
+      }
+      else if (!strcmp(argv[i], "-r") || !strcmp(argv[i], "--resize")) {
+         if (hasarg(i, argc, argv)) {
+            char *token;
+            char *delim;
+            int values[4] = { 0 };
+
+            if (strchr(argv[i + 1], 'x') != NULL) {
+               delim = strdup("x");
+               token = strtok(argv[i + 1], delim);
+               for (int i = 0; i < 2 && token != NULL; i++) {
+                  values[i] = atoi(token);
+                  token = strtok(NULL, delim);
+               }
+            }
+            if (strchr(argv[i + 1], '+') != NULL) {
+               delim = strdup("+");
+               token = strtok(argv[i + 1], delim);
+               for (int i = 2; i < 4 && token != NULL; i++) {
+                  values[i] = atoi(token);
+                  token = strtok(NULL, delim);
+               }
+            }
+
+            int new_w = values[0];
+            int new_h = values[1];
+            int off_x = values[2];
+            int off_y = values[3];
+
+            printf("x=%d, y=%d, px=%d, py=%d\n", new_w, new_h, off_x, off_y);
+
+            resize_image(dim_grid, dim_block, d_img, d_tmp, width, height, new_w, new_h, off_x,
+                         off_y);
          }
          i++;
       }

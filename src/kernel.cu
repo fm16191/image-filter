@@ -155,3 +155,26 @@ __global__ void sobel_kernel(unsigned char *d_img, const unsigned char *d_tmp, c
       }
    }
 }
+
+__global__ void resize_kernel(unsigned char *d_img, const unsigned char *d_tmp, const size_t old_w,
+                              const size_t old_h, const size_t new_w, const size_t new_h)
+{
+   // // Get the coordinates of the current thread
+   size_t col = blockIdx.x * blockDim.x + threadIdx.x;
+   size_t row = blockIdx.y * blockDim.y + threadIdx.y;
+
+   if (row < new_w && col < new_h) {
+      // Calculate the scale factor for the new image
+      const float scale_factor = (float)new_w / (float)old_w;
+
+      // Calculate the corresponding pixel in the input image
+      const size_t old_row = (size_t)((float)row / scale_factor);
+      const size_t old_col = (size_t)((float)col / scale_factor);
+
+      // Calculate the index of the pixel in the input and output buffers
+      const size_t old_idx = (old_col * old_w + old_row) * N_COMPONENT;
+      const size_t new_idx = (col * old_w + row) * N_COMPONENT;
+      for (size_t i = 0; i < N_COMPONENT; ++i)
+         d_img[new_idx + i] = d_tmp[old_idx + i];
+   }
+}
