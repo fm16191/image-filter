@@ -24,7 +24,7 @@ __global__ void saturate_component(unsigned char *d_img, const size_t size,
 }
 
 __global__ void extract_component(unsigned char *d_img, const size_t size,
-                                   const size_t component_index)
+                                  const size_t component_index)
 {
    size_t id = index();
 
@@ -117,38 +117,38 @@ __global__ void sobel_kernel(unsigned char *d_img, const unsigned char *d_tmp, c
       for (size_t i = 0; i < N_COMPONENT; ++i) {
          // Convolution matrices for computing approximations of horizontal and vertical
          // derivatives
-         size_t gx = 0;
-         size_t gy = 0;
+         int gx = 0;
+         int gy = 0;
 
          // Horizontal approximation
          if (id - width - 1 > 0)
-            gx -= 1 * (size_t)d_tmp[(id - width - 1) * N_COMPONENT + i];
+            gx -= 1 * (int)d_tmp[(id - width - 1) * N_COMPONENT + i];
          if (id - 1 > 0)
-            gx -= 2 * (size_t)d_tmp[(id - 1) * N_COMPONENT + i];
+            gx -= 2 * (int)d_tmp[(id - 1) * N_COMPONENT + i];
          if (id + width - 1 < size)
-            gx -= 1 * (size_t)d_tmp[(id + width - 1) * N_COMPONENT + i];
+            gx -= 1 * (int)d_tmp[(id + width - 1) * N_COMPONENT + i];
 
          if (id - width + 1 > 0)
-            gx += 1 * (size_t)d_tmp[(id - width + 1) * N_COMPONENT + i];
+            gx += 1 * (int)d_tmp[(id - width + 1) * N_COMPONENT + i];
          if (id + 1 < size)
-            gx += 2 * (size_t)d_tmp[(id + 1) * N_COMPONENT + i];
+            gx += 2 * (int)d_tmp[(id + 1) * N_COMPONENT + i];
          if (id + width + 1 < size)
-            gx += 1 * (size_t)d_tmp[(id + width + 1) * N_COMPONENT + i];
+            gx += 1 * (int)d_tmp[(id + width + 1) * N_COMPONENT + i];
 
          // Vertical approximation
          if (id + width - 1 < size)
-            gy -= 1 * (size_t)d_tmp[(id + width - 1) * N_COMPONENT + i];
+            gy -= 1 * (int)d_tmp[(id + width - 1) * N_COMPONENT + i];
          if (id + width < size)
-            gy -= 2 * (size_t)d_tmp[(id + width) * N_COMPONENT + i];
+            gy -= 2 * (int)d_tmp[(id + width) * N_COMPONENT + i];
          if (id + width + 1 < size)
-            gy -= 1 * (size_t)d_tmp[(id + width + 1) * N_COMPONENT + i];
+            gy -= 1 * (int)d_tmp[(id + width + 1) * N_COMPONENT + i];
 
          if (id - width - 1 > 0)
-            gy += 1 * (size_t)d_tmp[(id - width - 1) * N_COMPONENT + i];
+            gy += 1 * (int)d_tmp[(id - width - 1) * N_COMPONENT + i];
          if (id - width > 0)
-            gy += 2 * (size_t)d_tmp[(id - width) * N_COMPONENT + i];
+            gy += 2 * (int)d_tmp[(id - width) * N_COMPONENT + i];
          if (id - width + 1 > 0)
-            gy += 1 * (size_t)d_tmp[(id - width + 1) * N_COMPONENT + i];
+            gy += 1 * (int)d_tmp[(id - width + 1) * N_COMPONENT + i];
 
          //
          d_img[id * N_COMPONENT + i] = (unsigned char)sqrt((float)(gx * gx + gy * gy));
