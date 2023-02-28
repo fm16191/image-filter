@@ -210,10 +210,16 @@ __host__ void resize_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img,
 }
 
 __host__ void pop_art_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img,
-                            unsigned char *d_save, unsigned char *d_tmp, size_t width,
-                            size_t height)
+                            unsigned char *d_tmp, size_t width, size_t height)
 {
+   cudaError_t err;
    cudaEventRecord(start);
+
+   unsigned char *d_save = NULL;
+   err = cudaMalloc(&d_save, ALLOC_SIZE_BYTES);
+   gpuErrCheck(err);
+   err = cudaMemcpy(d_save, d_img, ALLOC_SIZE_BYTES, cudaMemcpyDeviceToDevice);
+   gpuErrCheck(err);
 
    //
    cudaStream_t stream[4];
@@ -221,8 +227,7 @@ __host__ void pop_art_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img,
       cudaStreamCreate(&stream[i]);
 
    for (size_t i = 0; i < 4; ++i) {
-      cudaError_t err =
-         cudaMemcpyAsync(d_tmp, d_save, ALLOC_SIZE_BYTES, cudaMemcpyDeviceToDevice, stream[i]);
+      err = cudaMemcpyAsync(d_tmp, d_save, ALLOC_SIZE_BYTES, cudaMemcpyDeviceToDevice, stream[i]);
       gpuErrCheck(err);
       cudaStreamSynchronize(stream[i]);
 
@@ -238,8 +243,11 @@ __host__ void pop_art_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img,
    }
 
    //
-   for (int i = 0; i < 4; i++)
+   for (int i = 0; i < 4; i++) {
       cudaStreamSynchronize(stream[i]);
+      cudaStreamDestroy(stream[i]);
+   }
+   cudaFree(d_save);
 
    //
    cudaEventRecord(stop);
@@ -310,7 +318,7 @@ int main(int argc, char **argv)
    // Allocate memories
    unsigned char *h_img = NULL;
    unsigned char *d_img = NULL;
-   unsigned char *d_save = NULL;
+   // unsigned char *d_save = NULL;
    unsigned char *d_tmp = NULL;
 
    h_img = (unsigned char *)malloc(ALLOC_SIZE_BYTES);
@@ -318,8 +326,8 @@ int main(int argc, char **argv)
       return fprintf(stderr, "Cannot allocate memory\n"), 2;
    err = cudaMalloc(&d_img, ALLOC_SIZE_BYTES);
    gpuErrCheck(err);
-   err = cudaMalloc(&d_save, ALLOC_SIZE_BYTES);
-   gpuErrCheck(err);
+   // err = cudaMalloc(&d_save, ALLOC_SIZE_BYTES);
+   // gpuErrCheck(err);
    err = cudaMalloc(&d_tmp, ALLOC_SIZE_BYTES);
    gpuErrCheck(err);
 
@@ -329,8 +337,8 @@ int main(int argc, char **argv)
    // Copy host array to device array
    err = cudaMemcpy(d_img, h_img, ALLOC_SIZE_BYTES, cudaMemcpyHostToDevice);
    gpuErrCheck(err);
-   err = cudaMemcpy(d_save, d_img, ALLOC_SIZE_BYTES, cudaMemcpyDeviceToDevice);
-   gpuErrCheck(err);
+   // err = cudaMemcpy(d_save, d_img, ALLOC_SIZE_BYTES, cudaMemcpyDeviceToDevice);
+   // gpuErrCheck(err);
 
    // Define grid and blocks
    size_t grid_x = width / N_THREADS + 1;
@@ -389,7 +397,7 @@ int main(int argc, char **argv)
                component = B;
             else
                return printf("--saturate option must be in <r,g,b>\n"), usage(argv[0]);
-            //
+
             saturate_image(dim_grid, dim_block, d_img, height, width, component);
          }
          i++;
@@ -446,7 +454,7 @@ int main(int argc, char **argv)
          i++;
       }
       else if (!strcmp(argv[i], "-p") || !strcmp(argv[i], "--pop-art")) {
-         pop_art_image(dim_grid, dim_block, d_img, d_save, d_tmp, width, height);
+         pop_art_image(dim_grid, dim_block, d_img, d_tmp, width, height);
       }
       i++;
    }
@@ -469,4 +477,5 @@ int main(int argc, char **argv)
    free(h_img);
    cudaFree(d_img);
    cudaFree(d_tmp);
+   // cudaFree(d_save);
 }
