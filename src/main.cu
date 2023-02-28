@@ -83,6 +83,7 @@ __host__ int usage(char *exec)
           "-n, --negative          Transform image into a negative.\n"
           "-r, --resize WxH[+x+y]  Resize image with WxH dimensions at x,y offsets.\n"
           "-p, --pop-art           Create a pop-art combinaison out of the original image.\n"
+          "-t, --artistic          Idk. Don't ask about it.\n"
           "\n"
           "-h, --help              Show this message and exit\n"
           // "-d, --debug          Enable debug mode\n"
@@ -254,6 +255,20 @@ __host__ void pop_art_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img,
 
    float milliseconds = cudaTimerCompute(start, stop);
    printf("Pop-art in %e s\n", milliseconds / 1e3);
+}
+
+__host__ void artistic_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img,
+                             unsigned char *d_tmp, size_t height, size_t width)
+{
+   cudaError_t err = cudaMemcpy(d_tmp, d_img, ALLOC_SIZE_BYTES, cudaMemcpyDeviceToDevice);
+   gpuErrCheck(err);
+
+   cudaEventRecord(start);
+   artistic_kernel<<<dim_grid, dim_block>>>(d_img, d_tmp, height, width);
+   cudaEventRecord(stop);
+
+   float milliseconds = cudaTimerCompute(start, stop);
+   printf("Artistic filter in %e s\n", milliseconds / 1e3);
 }
 
 int main(int argc, char **argv)
@@ -455,6 +470,9 @@ int main(int argc, char **argv)
       }
       else if (!strcmp(argv[i], "-p") || !strcmp(argv[i], "--pop-art")) {
          pop_art_image(dim_grid, dim_block, d_img, d_tmp, width, height);
+      }
+      else if (!strcmp(argv[i], "-t") || !strcmp(argv[i], "--artistic")) {
+         artistic_image(dim_grid, dim_block, d_img, d_tmp, height, width);
       }
       i++;
    }

@@ -23,6 +23,29 @@ __global__ void saturate_component(unsigned char *d_img, const size_t size,
       d_img[id * N_COMPONENT + component_index] = FULL;
 }
 
+// Do not ask too much about this ... Blur but using unsigned char :clown_face:
+__global__ void artistic_kernel(unsigned char *d_img, const unsigned char *d_tmp, int height,
+                                int width)
+{
+   int id = index();
+
+   int size = height * width;
+
+   if (id < size) {
+      if (id % width != 0 && (id + 1) % width != 0 && (id / width) % height != 0 &&
+          ((id + 1) / width) % height != 0) {
+         for (size_t k = 0; k < N_COMPONENT; ++k) {
+            unsigned char mean = d_tmp[id * N_COMPONENT + k];
+            mean += d_tmp[(id - 1) * N_COMPONENT + k];
+            mean += d_tmp[(id + 1) * N_COMPONENT + k];
+            mean += d_tmp[(id - width) * N_COMPONENT + k];
+            mean += d_tmp[(id + width) * N_COMPONENT + k];
+            d_img[id * N_COMPONENT + k] = mean / (unsigned char)5;
+         }
+      }
+   }
+}
+
 __global__ void extract_component(unsigned char *d_img, const size_t size,
                                   const size_t component_index)
 {

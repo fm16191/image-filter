@@ -31,5 +31,7 @@ __global__ void extract_component(unsigned char *d_img, const size_t size,
 __global__ void resize_kernel(unsigned char *d_img, const unsigned char *d_tmp, const size_t old_w,
                               const size_t old_h, const size_t new_w, const size_t new_h,
                               const int off_x, const int off_y);
+__global__ void artistic_kernel(unsigned char *d_img, const unsigned char *d_tmp, int height,
+                                int width);
 
 #endif // _KERNEL_H_
