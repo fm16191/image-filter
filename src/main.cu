@@ -80,6 +80,7 @@ __host__ int usage(char *exec)
           "-l, --sobel             Apply a Sobel filter to the image.\n"
           "-n, --negative          Transform image into a negative.\n"
           "-r, --resize [WxH+x+y]  Resize image with WxH dimensions at x,y offsets"
+          "-p, --pop-art           Create a pop-art combinaison out of the original image"
 
           "-h, --help              Show this message and exit\n"
           // "-d, --debug          Enable debug mode\n"
@@ -206,6 +207,27 @@ __host__ void resize_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img,
           milliseconds / 1e3);
 }
 
+__host__ void pop_art_image(dim3 dim_grid, dim3 dim_block, unsigned char *d_img,
+                            unsigned char *d_save, unsigned char *d_tmp, size_t width,
+                            size_t height)
+{
+   cudaEventRecord(start);
+   for (size_t i = 0; i < 4; ++i) {
+      cudaError_t err = cudaMemcpy(d_tmp, d_save, ALLOC_SIZE_BYTES, cudaMemcpyDeviceToDevice);
+      gpuErrCheck(err);
+      if (i == 3)
+         grayscale_image(dim_grid, dim_block, d_tmp, height, width);
+      else
+         saturate_image(dim_grid, dim_block, d_tmp, height, width, (component_t)i);
+      resize_kernel<<<dim_grid, dim_block>>>(d_img, d_tmp, width, height, width / 2, height / 2,
+                                             width / 2 * (i / 2), height / 2 * (i % 2));
+   }
+   cudaEventRecord(stop);
+
+   float milliseconds = cudaTimerCompute(start, stop);
+   printf("Pop-art in %e s\n", milliseconds / 1e3);
+}
+
 int main(int argc, char **argv)
 {
    size_t i = 1;
@@ -268,12 +290,15 @@ int main(int argc, char **argv)
    // Allocate memories
    unsigned char *h_img = NULL;
    unsigned char *d_img = NULL;
+   unsigned char *d_save = NULL;
    unsigned char *d_tmp = NULL;
 
    h_img = (unsigned char *)malloc(ALLOC_SIZE_BYTES);
    if (!h_img)
       return fprintf(stderr, "Cannot allocate memory\n"), 2;
    err = cudaMalloc(&d_img, ALLOC_SIZE_BYTES);
+   gpuErrCheck(err);
+   err = cudaMalloc(&d_save, ALLOC_SIZE_BYTES);
    gpuErrCheck(err);
    err = cudaMalloc(&d_tmp, ALLOC_SIZE_BYTES);
    gpuErrCheck(err);
@@ -283,6 +308,8 @@ int main(int argc, char **argv)
 
    // Copy host array to device array
    err = cudaMemcpy(d_img, h_img, ALLOC_SIZE_BYTES, cudaMemcpyHostToDevice);
+   gpuErrCheck(err);
+   err = cudaMemcpy(d_save, d_img, ALLOC_SIZE_BYTES, cudaMemcpyDeviceToDevice);
    gpuErrCheck(err);
 
    // Define grid and blocks
@@ -397,6 +424,9 @@ int main(int argc, char **argv)
                          off_y);
          }
          i++;
+      }
+      else if (!strcmp(argv[i], "-p") || !strcmp(argv[i], "--pop-art")) {
+         pop_art_image(dim_grid, dim_block, d_img, d_save, d_tmp, width, height);
       }
       i++;
    }
